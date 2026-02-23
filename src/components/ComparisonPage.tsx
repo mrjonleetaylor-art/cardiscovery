@@ -106,15 +106,27 @@ export default function ComparisonPage() {
   };
 
   const selectCarA = (vehicle: StructuredVehicle | null) => {
-    setVehicles([vehicle, vehicles[1]]);
-    setSelectedTrims([vehicle?.trims[0]?.id ?? null, selectedTrims[1]]);
-    setSelectedPackIds([[], selectedPackIds[1]]);
+    if (vehicle === null) {
+      setVehicles([null, null]);
+      setSelectedTrims([null, null]);
+      setSelectedPackIds([[], []]);
+    } else {
+      setVehicles([vehicle, null]);
+      setSelectedTrims([vehicle.trims[0]?.id ?? null, null]);
+      setSelectedPackIds([[], []]);
+    }
   };
 
   const selectCarB = (vehicle: StructuredVehicle | null) => {
-    setVehicles([vehicles[0], vehicle]);
-    setSelectedTrims([selectedTrims[0], vehicle?.trims[0]?.id ?? null]);
-    setSelectedPackIds([selectedPackIds[0], []]);
+    if (vehicle === null) {
+      setVehicles([vehicles[0], null]);
+      setSelectedTrims([selectedTrims[0], null]);
+      setSelectedPackIds([selectedPackIds[0], []]);
+    } else {
+      setVehicles([vehicles[0], vehicle]);
+      setSelectedTrims([selectedTrims[0], vehicle.trims[0]?.id ?? null]);
+      setSelectedPackIds([selectedPackIds[0], []]);
+    }
   };
 
   const filteredVehiclesA = structuredVehicles.filter(v => {
@@ -150,13 +162,14 @@ export default function ComparisonPage() {
   const v2 = vehicles[1];
   const specs1 = resolvedSpecs[0];
   const specs2 = resolvedSpecs[1];
+  const showSelectorGrid = !v1 || !v2;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
       <div className="max-w-[1800px] mx-auto">
         <h1 className="text-4xl font-bold text-slate-900 mb-8">Vehicle Comparison</h1>
 
-        {(!v1 || !v2) && (
+        {showSelectorGrid && (
           <div className="grid lg:grid-cols-2 gap-6 mb-8">
             {/* Left column: Car A selector or compact locked panel */}
             {!v1 ? (
@@ -271,7 +284,7 @@ export default function ComparisonPage() {
                         Change
                       </button>
                       <button
-                        onClick={() => { selectCarA(null); selectCarB(null); }}
+                        onClick={() => selectCarA(null)}
                         className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
                         title="Remove Car A"
                       >
