@@ -190,80 +190,122 @@ export default function ComparisonPage() {
         {/* Comparison table — shows as soon as Car A is selected */}
         {v1 && (
           <>
-            {/* Sticky header — only when both cars selected */}
-            {v2 && (
-              <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden mb-6 sticky top-16 z-10 shadow-lg">
-                <div className="grid grid-cols-2 divide-x divide-slate-200 p-4">
-                  <div className="px-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-bold text-slate-900 mb-1 truncate">
-                          {v1.year} {v1.make} {v1.model}
-                        </h2>
-                        {specs1?.selectedTrim.name && <p className="text-sm text-slate-600 mb-2">{specs1.selectedTrim.name}</p>}
-                        <p className="text-2xl font-bold text-slate-900">${specs1?.totalPrice.toLocaleString()}</p>
-                      </div>
+            {/* Sticky banner — shows as soon as Car A is selected */}
+            <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden mb-6 sticky top-16 z-10 shadow-lg">
+              <div className="grid grid-cols-2 divide-x divide-slate-200">
+                {/* Car A */}
+                <div className="p-3 sm:p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                        {v1.year} {v1.make} {v1.model}
+                      </h2>
+                      {specs1?.selectedTrim.name && (
+                        <p className="text-xs text-slate-500 truncate">{specs1.selectedTrim.name}</p>
+                      )}
+                      <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                        ${specs1?.totalPrice.toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => toggleGarage(0)}
-                        className={`flex-shrink-0 p-2 rounded-lg border-2 transition-all ${
+                        className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${
                           inGarage[0]
-                            ? 'border-red-500 text-red-600 hover:bg-red-50'
-                            : 'border-slate-900 text-slate-900 hover:bg-slate-50'
+                            ? 'border-red-400 text-red-600 hover:bg-red-50'
+                            : 'border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
-                        title={inGarage[0] ? 'Remove from Garage' : 'Save to Garage'}
                       >
-                        <Heart className={`w-4 h-4 ${inGarage[0] ? 'fill-red-500' : ''}`} />
+                        <Heart className={`w-3 h-3 ${inGarage[0] ? 'fill-red-500' : ''}`} />
+                        {inGarage[0] ? 'Saved' : 'Save'}
                       </button>
-                    </div>
-                  </div>
-
-                  <div className="px-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-xl font-bold text-slate-900 mb-1 truncate">
-                          {v2.year} {v2.make} {v2.model}
-                        </h2>
-                        {specs2?.selectedTrim.name && <p className="text-sm text-slate-600 mb-2">{specs2.selectedTrim.name}</p>}
-                        <p className="text-2xl font-bold text-slate-900">${specs2?.totalPrice.toLocaleString()}</p>
-                      </div>
                       <button
-                        onClick={() => toggleGarage(1)}
-                        className={`flex-shrink-0 p-2 rounded-lg border-2 transition-all ${
-                          inGarage[1]
-                            ? 'border-red-500 text-red-600 hover:bg-red-50'
-                            : 'border-slate-900 text-slate-900 hover:bg-slate-50'
+                        onClick={() => toggleGarage(0)}
+                        className={`sm:hidden p-1.5 rounded-lg border transition-all ${
+                          inGarage[0]
+                            ? 'border-red-400 text-red-600 hover:bg-red-50'
+                            : 'border-slate-300 text-slate-700 hover:bg-slate-50'
                         }`}
-                        title={inGarage[1] ? 'Remove from Garage' : 'Save to Garage'}
                       >
-                        <Heart className={`w-4 h-4 ${inGarage[1] ? 'fill-red-500' : ''}`} />
+                        <Heart className={`w-3.5 h-3.5 ${inGarage[0] ? 'fill-red-500' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => selectCarA(null)}
+                        className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                      >
+                        Change
+                      </button>
+                      <button
+                        onClick={() => selectCarA(null)}
+                        className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
+                        title="Remove Car A"
+                      >
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
 
-            {/* Vehicle image cards — only when both selected */}
-            {v2 && (
-              <div className="grid grid-cols-2 gap-6 mb-6">
-                <VehicleHeader
-                  vehicle={v1}
-                  price={specs1?.totalPrice ?? v1.trims[0].basePrice}
-                  trimName={specs1?.selectedTrim.name}
-                  inGarage={inGarage[0]}
-                  onToggleGarage={() => toggleGarage(0)}
-                  onRemove={() => selectCarA(null)}
-                />
-                <VehicleHeader
-                  vehicle={v2}
-                  price={specs2?.totalPrice ?? v2.trims[0].basePrice}
-                  trimName={specs2?.selectedTrim.name}
-                  inGarage={inGarage[1]}
-                  onToggleGarage={() => toggleGarage(1)}
-                  onRemove={() => selectCarB(null)}
-                />
+                {/* Car B — placeholder or content */}
+                <div className="p-3 sm:p-4">
+                  {!v2 ? (
+                    <div className="flex items-center justify-center h-full min-h-[56px]">
+                      <p className="text-sm text-slate-400">Select Car B above to compare</p>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                          {v2.year} {v2.make} {v2.model}
+                        </h2>
+                        {specs2?.selectedTrim.name && (
+                          <p className="text-xs text-slate-500 truncate">{specs2.selectedTrim.name}</p>
+                        )}
+                        <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                          ${specs2?.totalPrice.toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => toggleGarage(1)}
+                          className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${
+                            inGarage[1]
+                              ? 'border-red-400 text-red-600 hover:bg-red-50'
+                              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Heart className={`w-3 h-3 ${inGarage[1] ? 'fill-red-500' : ''}`} />
+                          {inGarage[1] ? 'Saved' : 'Save'}
+                        </button>
+                        <button
+                          onClick={() => toggleGarage(1)}
+                          className={`sm:hidden p-1.5 rounded-lg border transition-all ${
+                            inGarage[1]
+                              ? 'border-red-400 text-red-600 hover:bg-red-50'
+                              : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Heart className={`w-3.5 h-3.5 ${inGarage[1] ? 'fill-red-500' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => selectCarB(null)}
+                          className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                        >
+                          Change
+                        </button>
+                        <button
+                          onClick={() => selectCarB(null)}
+                          className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
+                          title="Remove Car B"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
 
             {/* Overview — always visible when Car A selected */}
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mb-4">
@@ -690,58 +732,6 @@ function DiscoveryPanel({
   );
 }
 
-function VehicleHeader({
-  vehicle,
-  price,
-  trimName,
-  inGarage,
-  onToggleGarage,
-  onRemove,
-}: {
-  vehicle: StructuredVehicle;
-  price: number;
-  trimName?: string;
-  inGarage: boolean;
-  onToggleGarage: () => void;
-  onRemove?: () => void;
-}) {
-  const imageUrl = vehicle.images[0] ?? '';
-  return (
-    <div className="bg-white rounded-lg border border-slate-200 overflow-hidden h-full flex flex-col">
-      <div className="aspect-[16/9] bg-slate-100 overflow-hidden">
-        {imageUrl ? (
-          <img src={imageUrl} alt={`${vehicle.make} ${vehicle.model}`} className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>
-        )}
-      </div>
-      <div className="p-4 flex-1 flex flex-col justify-end">
-        <div className="flex gap-2">
-          <button
-            onClick={onToggleGarage}
-            className={`flex-1 px-3 py-2 rounded-lg border-2 font-medium transition-all flex items-center justify-center gap-2 text-sm ${
-              inGarage
-                ? 'border-red-500 text-red-600 hover:bg-red-50'
-                : 'border-slate-900 text-slate-900 hover:bg-slate-50'
-            }`}
-          >
-            <Heart className={`w-4 h-4 ${inGarage ? 'fill-red-500' : ''}`} />
-            {inGarage ? 'Remove from Garage' : 'Add to Garage'}
-          </button>
-          {onRemove && (
-            <button
-              onClick={onRemove}
-              className="px-3 py-2 rounded-lg border-2 border-slate-300 text-slate-700 hover:bg-slate-50 font-medium flex items-center gap-2 text-sm"
-            >
-              <X className="w-4 h-4" />
-              Remove
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function ComparisonSection({ title, sectionKey, expanded, onToggle, children }: {
   title: string;
