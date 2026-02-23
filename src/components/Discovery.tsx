@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Search, Filter, Plus, Minus, Check } from 'lucide-react';
-import { Vehicle } from '../types';
-import { supabase } from '../lib/supabase';
+import { useMemo, useState, useEffect } from 'react';
+import { Search, Plus, Minus, Check } from 'lucide-react';
+import { StructuredVehicle } from '../types/specs';
+import { structuredVehicles } from '../data/structuredVehicles';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 
 interface Filters {
@@ -14,13 +14,19 @@ interface Filters {
   budgetMax: number;
 }
 
+function getDisplayProps(v: StructuredVehicle) {
+  const t = v.trims[0];
+  return {
+    bodyType: t?.specs.overview.bodyType ?? '',
+    fuelType: t?.specs.overview.fuelType ?? '',
+    basePrice: t?.basePrice ?? 0,
+    imageUrl: v.images[0] ?? '',
+  };
+}
+
 export default function Discovery() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
   const [garageItems, setGarageItems] = useState<string[]>([]);
   const [compareList, setCompareList] = useState<string[]>([]);
-  const [showFilters, setShowFilters] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
     search: '',
@@ -32,39 +38,10 @@ export default function Discovery() {
     budgetMax: 250000,
   });
 
-  const makes = Array.from(new Set(vehicles.map(v => v.make))).sort();
-  const models = Array.from(new Set(
-    vehicles
-      .filter(v => !filters.make || v.make === filters.make)
-      .map(v => v.model)
-  )).sort();
-  const bodyTypes = Array.from(new Set(vehicles.map(v => v.body_type).filter(Boolean))).sort();
-  const fuelTypes = Array.from(new Set(vehicles.map(v => v.fuel_type).filter(Boolean))).sort();
-
   useEffect(() => {
-    loadVehicles();
     loadGarageState();
     loadCompareState();
   }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [filters, vehicles]);
-
-  const loadVehicles = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error loading vehicles:', error);
-    } else {
-      setVehicles(data || []);
-    }
-    setLoading(false);
-  };
 
   const loadGarageState = () => {
     const garage = localStorage.getItem('garage_items');
@@ -76,42 +53,44 @@ export default function Discovery() {
     setCompareList(compare ? JSON.parse(compare) : []);
   };
 
-  const applyFilters = () => {
-    let filtered = [...vehicles];
+  const makes = Array.from(new Set(structuredVehicles.map(v => v.make))).sort();
+  const models = Array.from(new Set(
+    structuredVehicles
+      .filter(v => !filters.make || v.make === filters.make)
+      .map(v => v.model)
+  )).sort();
+  const bodyTypes = Array.from(new Set(
+    structuredVehicles.map(v => v.trims[0]?.specs.overview.bodyType).filter(Boolean)
+  )).sort() as string[];
+  const fuelTypes = Array.from(new Set(
+    structuredVehicles.map(v => v.trims[0]?.specs.overview.fuelType).filter(Boolean)
+  )).sort() as string[];
+
+  const filteredVehicles = useMemo(() => {
+    let filtered = [...structuredVehicles];
 
     if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
+      const s = filters.search.toLowerCase();
       filtered = filtered.filter(v =>
-        v.make.toLowerCase().includes(searchLower) ||
-        v.model.toLowerCase().includes(searchLower) ||
-        v.tags?.some(tag => tag.toLowerCase().includes(searchLower)) ||
-        v.ai_summary?.toLowerCase().includes(searchLower)
+        v.make.toLowerCase().includes(s) ||
+        v.model.toLowerCase().includes(s) ||
+        v.tags?.some(tag => tag.toLowerCase().includes(s)) ||
+        v.aiSummary?.toLowerCase().includes(s)
       );
     }
 
-    if (filters.make) {
-      filtered = filtered.filter(v => v.make === filters.make);
-    }
-
-    if (filters.model) {
-      filtered = filtered.filter(v => v.model === filters.model);
-    }
-
-    if (filters.bodyType) {
-      filtered = filtered.filter(v => v.body_type === filters.bodyType);
-    }
-
-    if (filters.fuelType) {
-      filtered = filtered.filter(v => v.fuel_type === filters.fuelType);
-    }
+    if (filters.make) filtered = filtered.filter(v => v.make === filters.make);
+    if (filters.model) filtered = filtered.filter(v => v.model === filters.model);
+    if (filters.bodyType) filtered = filtered.filter(v => getDisplayProps(v).bodyType === filters.bodyType);
+    if (filters.fuelType) filtered = filtered.filter(v => getDisplayProps(v).fuelType === filters.fuelType);
 
     filtered = filtered.filter(v => {
-      const price = v.base_price || v.price || 0;
+      const price = getDisplayProps(v).basePrice;
       return price >= filters.budgetMin && price <= filters.budgetMax;
     });
 
-    setFilteredVehicles(filtered);
-  };
+    return filtered;
+  }, [filters]);
 
   const toggleGarage = (vehicleId: string) => {
     if (isInGarage(vehicleId)) {
@@ -139,28 +118,15 @@ export default function Discovery() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
-            <p className="mt-4 text-slate-600">Loading vehicles...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-900 mb-2">Discover Your Perfect Car</h1>
+        <div className="mb-2">
+          <h1 className="text-4xl font-bold text-slate-900 mb-0">Discover Your Perfect Car</h1>
           <p className="text-lg text-slate-600">Explore our curated selection and find what drives you</p>
         </div>
 
-        <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="mb-2 flex flex-col sm:flex-row gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input
@@ -168,15 +134,15 @@ export default function Discovery() {
               placeholder="Search by make, model, or features..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
             />
           </div>
         </div>
 
-        <div className="mb-6 p-6 bg-white rounded-lg border border-slate-200 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <div className="mb-3 p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Make</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Make</label>
               <select
                 value={filters.make}
                 onChange={(e) => setFilters({ ...filters, make: e.target.value, model: '' })}
@@ -190,7 +156,7 @@ export default function Discovery() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
               <select
                 value={filters.model}
                 onChange={(e) => setFilters({ ...filters, model: e.target.value })}
@@ -205,7 +171,7 @@ export default function Discovery() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Body Type</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Body Type</label>
               <select
                 value={filters.bodyType}
                 onChange={(e) => setFilters({ ...filters, bodyType: e.target.value })}
@@ -219,7 +185,7 @@ export default function Discovery() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Fuel Type</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Fuel Type</label>
               <select
                 value={filters.fuelType}
                 onChange={(e) => setFilters({ ...filters, fuelType: e.target.value })}
@@ -234,8 +200,8 @@ export default function Discovery() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-4">Budget</label>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Budget</label>
+            <div className="grid grid-cols-2 gap-3 mb-2">
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Min</label>
                 <input
@@ -293,7 +259,7 @@ export default function Discovery() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-6 border-t border-slate-200 mt-6">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
             <p className="text-sm text-slate-600">
               {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} found
             </p>
@@ -314,24 +280,23 @@ export default function Discovery() {
           </div>
         </div>
 
-
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredVehicles.map((vehicle) => {
             const inGarage = garageItems.includes(vehicle.id);
             const inCompare = compareList.includes(vehicle.id);
-            const price = vehicle.base_price || vehicle.price || 0;
+            const { basePrice, imageUrl } = getDisplayProps(vehicle);
 
             return (
               <div key={vehicle.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
                 <div
-                  className="aspect-[16/9] bg-slate-100 relative overflow-hidden cursor-pointer"
+                  className="aspect-[2/1] bg-slate-100 relative overflow-hidden cursor-pointer"
                   onClick={() => {
                     window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
                   }}
                 >
-                  {vehicle.image_url ? (
+                  {imageUrl ? (
                     <img
-                      src={vehicle.image_url}
+                      src={imageUrl}
                       alt={`${vehicle.make} ${vehicle.model}`}
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                     />
@@ -351,28 +316,25 @@ export default function Discovery() {
                   )}
                 </div>
 
-                <div className="p-5">
+                <div className="p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <h3 className="text-xl font-bold text-slate-900">
                         {vehicle.year} {vehicle.make} {vehicle.model}
                       </h3>
-                      {vehicle.trim && (
-                        <p className="text-sm text-slate-600">{vehicle.trim}</p>
-                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-slate-900">
-                        ${price.toLocaleString()}
+                        ${basePrice.toLocaleString()}
                       </p>
-                      {vehicle.trim_options && vehicle.trim_options.length > 1 && (
+                      {vehicle.trims.length > 1 && (
                         <p className="text-xs text-slate-500">+ options</p>
                       )}
                     </div>
                   </div>
 
-                  {vehicle.ai_summary && (
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{vehicle.ai_summary}</p>
+                  {vehicle.aiSummary && (
+                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{vehicle.aiSummary}</p>
                   )}
 
                   <div className="flex gap-2">

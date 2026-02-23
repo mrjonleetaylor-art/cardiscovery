@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Trash2, GitCompare, HelpCircle } from 'lucide-react';
-import { Vehicle, UserPreferences } from '../types';
-import { supabase } from '../lib/supabase';
+import { StructuredVehicle } from '../types/specs';
+import { UserPreferences } from '../types';
+import { structuredVehicles } from '../data/structuredVehicles';
 import { getGarageItems, removeFromGarage } from '../lib/session';
+import { supabase } from '../lib/supabase';
 
 export default function GaragePage() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showQuestions, setShowQuestions] = useState(false);
   const [preferences, setPreferences] = useState<Partial<UserPreferences>>({
@@ -22,27 +23,9 @@ export default function GaragePage() {
     loadPreferences();
   }, []);
 
-  const loadGarageVehicles = async () => {
-    setLoading(true);
+  const loadGarageVehicles = () => {
     const garageIds = getGarageItems();
-
-    if (garageIds.length === 0) {
-      setVehicles([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .in('id', garageIds);
-
-    if (error) {
-      console.error('Error loading garage vehicles:', error);
-    } else {
-      setVehicles(data || []);
-    }
-    setLoading(false);
+    setVehicles(structuredVehicles.filter(v => garageIds.includes(v.id)));
   };
 
   const loadPreferences = () => {
@@ -89,19 +72,6 @@ export default function GaragePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
-            <p className="mt-4 text-slate-600">Loading your garage...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   if (vehicles.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
@@ -116,7 +86,7 @@ export default function GaragePage() {
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Your garage is empty</h2>
             <p className="text-slate-600 mb-6">Start exploring and add vehicles to your garage</p>
             <button
-              onClick={() => window.location.href = '/'}
+              onClick={() => window.dispatchEvent(new Event('navigate-discovery'))}
               className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-medium"
             >
               Start Discovery
@@ -274,7 +244,8 @@ export default function GaragePage() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicles.map((vehicle) => {
-            const price = vehicle.base_price || vehicle.price || 0;
+            const basePrice = vehicle.trims[0]?.basePrice ?? 0;
+            const imageUrl = vehicle.images[0] ?? '';
             const isSelected = selectedIds.includes(vehicle.id);
 
             return (
@@ -286,9 +257,9 @@ export default function GaragePage() {
                 onClick={() => toggleSelect(vehicle.id)}
               >
                 <div className="aspect-[16/9] bg-slate-100 relative">
-                  {vehicle.image_url ? (
+                  {imageUrl ? (
                     <img
-                      src={vehicle.image_url}
+                      src={imageUrl}
                       alt={`${vehicle.make} ${vehicle.model}`}
                       className="w-full h-full object-cover"
                     />
@@ -311,13 +282,13 @@ export default function GaragePage() {
                     {vehicle.year} {vehicle.make} {vehicle.model}
                   </h3>
 
-                  {vehicle.ai_summary && (
-                    <p className="text-sm text-slate-600 mb-3 line-clamp-2">{vehicle.ai_summary}</p>
+                  {vehicle.aiSummary && (
+                    <p className="text-sm text-slate-600 mb-3 line-clamp-2">{vehicle.aiSummary}</p>
                   )}
 
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xl font-bold text-slate-900">
-                      ${price.toLocaleString()}
+                      ${basePrice.toLocaleString()}
                     </p>
                   </div>
 

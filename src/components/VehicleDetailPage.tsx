@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
-import { Vehicle, TrimOption, PackOption } from '../types';
-import { supabase } from '../lib/supabase';
+import { StructuredVehicle, Pack, ResolvedSpecs } from '../types/specs';
+import { structuredVehicles } from '../data/structuredVehicles';
+import { resolveSpecs } from '../lib/resolveSpecs';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
-import { resolveVehicleSpecs } from '../lib/specResolver';
-import { ResolvedSpecs } from '../types/specs';
+import { supabase } from '../lib/supabase';
 
 interface VehicleDetailPageProps {
   vehicleId: string;
@@ -12,63 +12,39 @@ interface VehicleDetailPageProps {
 }
 
 export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPageProps) {
-  const [vehicle, setVehicle] = useState<Vehicle | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [vehicle, setVehicle] = useState<StructuredVehicle | null>(null);
   const [inGarage, setInGarage] = useState(false);
   const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
   const [resolvedData, setResolvedData] = useState<ResolvedSpecs | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['option-packs']));
-  const [similarVehicles, setSimilarVehicles] = useState<Vehicle[]>([]);
+  const [similarVehicles, setSimilarVehicles] = useState<StructuredVehicle[]>([]);
 
   useEffect(() => {
-    loadVehicle();
+    const found = structuredVehicles.find(v => v.id === vehicleId) ?? null;
+    setVehicle(found);
+    if (found) {
+      setSelectedTrimId(found.trims[0]?.id ?? null);
+      setSelectedPackIds([]);
+      const bodyType = found.trims[0]?.specs.overview.bodyType;
+      setSimilarVehicles(
+        structuredVehicles
+          .filter(v => v.id !== found.id && v.trims[0]?.specs.overview.bodyType === bodyType)
+          .slice(0, 3)
+      );
+    }
   }, [vehicleId]);
 
   useEffect(() => {
     if (vehicle) {
-      const resolved = resolveVehicleSpecs(vehicle, selectedTrimId, selectedPackIds);
-      setResolvedData(resolved);
+      setResolvedData(resolveSpecs(vehicle, selectedTrimId ?? undefined, selectedPackIds));
     }
   }, [vehicle, selectedTrimId, selectedPackIds]);
 
   useEffect(() => {
     setInGarage(isInGarage(vehicleId));
   }, [vehicleId]);
-
-  const loadVehicle = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('id', vehicleId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error loading vehicle:', error);
-    } else if (data) {
-      setVehicle(data);
-      if (data.trim_options && data.trim_options.length > 0) {
-        setSelectedTrimId(data.trim_options[0].name);
-      }
-      loadSimilarVehicles(data);
-    }
-    setLoading(false);
-  };
-
-  const loadSimilarVehicles = async (currentVehicle: Vehicle) => {
-    const { data } = await supabase
-      .from('vehicles')
-      .select('*')
-      .neq('id', currentVehicle.id)
-      .eq('body_type', currentVehicle.body_type)
-      .limit(3);
-
-    if (data) {
-      setSimilarVehicles(data);
-    }
-  };
 
   const toggleGarage = () => {
     if (inGarage) {
@@ -99,28 +75,11 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     setExpandedSections(newExpanded);
   };
 
-  const togglePack = (packName: string) => {
-    setSelectedPackIds(prev => {
-      if (prev.includes(packName)) {
-        return prev.filter(p => p !== packName);
-      } else {
-        return [...prev, packName];
-      }
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 pt-20 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
-            <p className="mt-4 text-slate-600">Loading vehicle...</p>
-          </div>
-        </div>
-      </div>
+  const togglePack = (packId: string) => {
+    setSelectedPackIds(prev =>
+      prev.includes(packId) ? prev.filter(p => p !== packId) : [...prev, packId]
     );
-  }
+  };
 
   if (!vehicle) {
     return (
@@ -135,11 +94,12 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     );
   }
 
-  const priceRange = vehicle.trim_options && vehicle.trim_options.length > 1
-    ? `$${(vehicle.base_price || 0).toLocaleString()} - $${((vehicle.base_price || 0) + Math.max(...vehicle.trim_options.map(t => t.price_adjustment))).toLocaleString()}`
-    : `$${resolvedData?.totalPrice.toLocaleString() || 0}`;
+  const priceRange = vehicle.trims.length > 1
+    ? `$${vehicle.trims[0].basePrice.toLocaleString()} – $${Math.max(...vehicle.trims.map(t => t.basePrice)).toLocaleString()}`
+    : `$${(resolvedData?.totalPrice ?? vehicle.trims[0].basePrice).toLocaleString()}`;
 
   const specs = resolvedData?.specs;
+  const currentTrimPacks = resolvedData?.selectedTrim.packs ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50 pt-20 pb-12">
@@ -155,9 +115,9 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="aspect-[16/9] bg-slate-200 rounded-xl overflow-hidden mb-6">
-              {vehicle.image_url ? (
+              {vehicle.images[0] ? (
                 <img
-                  src={vehicle.image_url}
+                  src={vehicle.images[0]}
                   alt={`${vehicle.make} ${vehicle.model}`}
                   className="w-full h-full object-cover"
                 />
@@ -184,7 +144,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 mb-3">Positioning</h3>
                   <p className="text-sm text-slate-700 leading-relaxed">
-                    {vehicle.ai_summary || `The ${vehicle.year} ${vehicle.make} ${vehicle.model} offers a compelling blend of practicality and performance. Best suited for buyers seeking reliability and comfort in the ${vehicle.body_type?.toLowerCase()} segment.`}
+                    {vehicle.aiSummary || `The ${vehicle.year} ${vehicle.make} ${vehicle.model} offers a compelling blend of practicality and performance.`}
                   </p>
                 </div>
               </div>
@@ -195,19 +155,19 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
               isExpanded={expandedSections.has('option-packs')}
               onToggle={() => toggleSection('option-packs')}
             >
-              {vehicle.pack_options && vehicle.pack_options.length > 0 ? (
+              {currentTrimPacks.length > 0 ? (
                 <div className="space-y-4">
-                  {vehicle.pack_options.map((pack: PackOption) => {
-                    const isSelected = selectedPackIds.includes(pack.name);
+                  {currentTrimPacks.map((pack: Pack) => {
+                    const isSelected = selectedPackIds.includes(pack.id);
                     return (
                       <div
-                        key={pack.name}
+                        key={pack.id}
                         className={`border-2 rounded-lg p-5 cursor-pointer transition-all ${
                           isSelected
                             ? 'border-slate-900 bg-slate-50'
                             : 'border-slate-200 hover:border-slate-300'
                         }`}
-                        onClick={() => togglePack(pack.name)}
+                        onClick={() => togglePack(pack.id)}
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center gap-3">
@@ -222,16 +182,19 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                             </div>
                           </div>
                           <span className="font-bold text-slate-900">
-                            +${pack.price_adjustment.toLocaleString()}
+                            +${pack.priceDelta.toLocaleString()}
                           </span>
                         </div>
-                        {pack.options && pack.options.length > 0 && (
+                        {pack.description && (
+                          <p className="text-sm text-slate-600 mb-2 ml-8">{pack.description}</p>
+                        )}
+                        {pack.features.length > 0 && (
                           <div className="ml-8 space-y-1">
-                            {pack.options.slice(0, 6).map((opt, idx) => (
-                              <p key={idx} className="text-sm text-slate-600">• {opt.name}</p>
+                            {pack.features.slice(0, 6).map((f, idx) => (
+                              <p key={idx} className="text-sm text-slate-600">• {f}</p>
                             ))}
-                            {pack.options.length > 6 && (
-                              <p className="text-sm text-slate-500 italic">+ {pack.options.length - 6} more features</p>
+                            {pack.features.length > 6 && (
+                              <p className="text-sm text-slate-500 italic">+ {pack.features.length - 6} more features</p>
                             )}
                           </div>
                         )}
@@ -240,7 +203,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                   })}
                 </div>
               ) : (
-                <p className="text-slate-600">No additional packs available for this model</p>
+                <p className="text-slate-600">No additional packs available for this trim</p>
               )}
             </AccordionSection>
 
@@ -290,7 +253,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 mb-2">Driving Character</h4>
                   <p className="text-sm text-slate-600">
-                    {specs?.performance.drivingCharacter || 'Comfortable and composed driving experience with a focus on refinement and ease of use.'}
+                    {specs?.performance.drivingCharacter || 'Comfortable and composed driving experience with a focus on refinement.'}
                   </p>
                 </div>
               </div>
@@ -363,15 +326,15 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                       onClick={() => window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: similar.id } }))}
                     >
                       <div className="aspect-video bg-slate-100">
-                        {similar.image_url && (
-                          <img src={similar.image_url} alt={`${similar.make} ${similar.model}`} className="w-full h-full object-cover" />
+                        {similar.images[0] && (
+                          <img src={similar.images[0]} alt={`${similar.make} ${similar.model}`} className="w-full h-full object-cover" />
                         )}
                       </div>
                       <div className="p-4">
                         <h4 className="font-semibold text-slate-900">{similar.make} {similar.model}</h4>
                         <p className="text-sm text-slate-600">{similar.year}</p>
                         <p className="text-sm font-bold text-slate-900 mt-2">
-                          ${(similar.base_price || similar.price || 0).toLocaleString()}
+                          ${similar.trims[0]?.basePrice.toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -387,25 +350,31 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 <h1 className="text-2xl font-bold text-slate-900 mb-1">
                   {vehicle.year} {vehicle.make} {vehicle.model}
                 </h1>
-                {vehicle.trim && (
-                  <p className="text-slate-600 mb-4">{vehicle.trim}</p>
+                {resolvedData && (
+                  <p className="text-slate-600 mb-4">{resolvedData.selectedTrim.name}</p>
                 )}
 
-                {vehicle.trim_options && vehicle.trim_options.length > 1 && (
+                {vehicle.trims.length > 1 && (
                   <div className="mb-6">
                     <label className="block text-sm font-semibold text-slate-900 mb-2">
                       Select Trim
                     </label>
                     <select
-                      value={selectedTrimId || ''}
-                      onChange={(e) => setSelectedTrimId(e.target.value)}
+                      value={selectedTrimId || vehicle.trims[0].id}
+                      onChange={(e) => {
+                        setSelectedTrimId(e.target.value);
+                        setSelectedPackIds([]);
+                      }}
                       className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
                     >
-                      {vehicle.trim_options.map((trim) => (
-                        <option key={trim.name} value={trim.name}>
-                          {trim.name} {trim.price_adjustment > 0 ? `(+$${trim.price_adjustment.toLocaleString()})` : ''}
-                        </option>
-                      ))}
+                      {vehicle.trims.map((trim) => {
+                        const delta = trim.basePrice - vehicle.trims[0].basePrice;
+                        return (
+                          <option key={trim.id} value={trim.id}>
+                            {trim.name}{delta > 0 ? ` (+$${delta.toLocaleString()})` : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 )}
@@ -440,7 +409,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                     }`}
                   >
                     {inGarage ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {inGarage ? 'In Garage' : 'Add to Garage'}
+                    {inGarage ? 'Remove from Garage' : 'Add to Garage'}
                   </button>
 
                   <button
@@ -458,11 +427,11 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                   </button>
                 </div>
 
-                {vehicle.best_for && vehicle.best_for.length > 0 && (
+                {vehicle.bestFor && vehicle.bestFor.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     <h4 className="text-sm font-semibold text-slate-900 mb-3">Best For</h4>
                     <div className="space-y-2">
-                      {vehicle.best_for.map((item, idx) => (
+                      {vehicle.bestFor.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
                           <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                           {item}
@@ -472,11 +441,11 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                   </div>
                 )}
 
-                {vehicle.trade_offs && vehicle.trade_offs.length > 0 && (
+                {vehicle.tradeOffs && vehicle.tradeOffs.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     <h4 className="text-sm font-semibold text-slate-900 mb-3">Consider</h4>
                     <div className="space-y-2">
-                      {vehicle.trade_offs.map((item, idx) => (
+                      {vehicle.tradeOffs.map((item, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm text-slate-700">
                           <X className="w-4 h-4 text-slate-400 flex-shrink-0" />
                           {item}
@@ -540,7 +509,7 @@ function AccordionSection({
   );
 }
 
-function LeadFormModal({ vehicle, onClose }: { vehicle: Vehicle; onClose: () => void }) {
+function LeadFormModal({ vehicle, onClose }: { vehicle: StructuredVehicle; onClose: () => void }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
