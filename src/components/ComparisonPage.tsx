@@ -29,7 +29,6 @@ export default function ComparisonPage() {
   const [selectedPackIds, setSelectedPackIds] = useState<[string[], string[]]>([[], []]);
   const [resolvedSpecs, setResolvedSpecsState] = useState<[ResolvedSpecs | null, ResolvedSpecs | null]>([null, null]);
   const [inGarage, setInGarage] = useState<[boolean, boolean]>([false, false]);
-
   const [filtersA, setFiltersA] = useState<Filters>({ search: '', make: '', model: '', bodyType: '', fuelType: '' });
   const [filtersB, setFiltersB] = useState<Filters>({ search: '', make: '', model: '', bodyType: '', fuelType: '' });
 
@@ -157,35 +156,60 @@ export default function ComparisonPage() {
       <div className="max-w-[1800px] mx-auto">
         <h1 className="text-4xl font-bold text-slate-900 mb-8">Vehicle Comparison</h1>
 
-        <div className="grid lg:grid-cols-2 gap-6 mb-8">
-          <DiscoveryPanel
-            title="Car A"
-            vehicle={v1}
-            filters={filtersA}
-            setFilters={setFiltersA}
-            filteredVehicles={filteredVehiclesA}
-            makes={makes}
-            models={modelsA}
-            bodyTypes={bodyTypesA}
-            fuelTypes={fuelTypesA}
-            onSelectVehicle={selectCarA}
-            disabled={false}
-          />
-
-          <DiscoveryPanel
-            title="Car B"
-            vehicle={v2}
-            filters={filtersB}
-            setFilters={setFiltersB}
-            filteredVehicles={filteredVehiclesB}
-            makes={makes}
-            models={modelsB}
-            bodyTypes={bodyTypesB}
-            fuelTypes={fuelTypesB}
-            onSelectVehicle={selectCarB}
-            disabled={!v1}
-          />
-        </div>
+        {(!v1 || !v2) && (
+          <div className="grid lg:grid-cols-2 gap-6 mb-8">
+            {/* Left column: Car A selector or compact locked panel */}
+            {!v1 ? (
+              <DiscoveryPanel
+                title="Car A"
+                vehicle={v1}
+                filters={filtersA}
+                setFilters={setFiltersA}
+                filteredVehicles={filteredVehiclesA}
+                makes={makes}
+                models={modelsA}
+                bodyTypes={bodyTypesA}
+                fuelTypes={fuelTypesA}
+                onSelectVehicle={selectCarA}
+                disabled={false}
+              />
+            ) : (
+              <div className="bg-white rounded-lg border-2 border-slate-200 p-4 flex items-center gap-4 self-start">
+                {v1.images[0] && (
+                  <img
+                    src={v1.images[0]}
+                    alt=""
+                    className="w-20 h-14 object-cover rounded bg-slate-100 flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-0.5">Car A</p>
+                  <h3 className="font-bold text-slate-900 text-base leading-tight">
+                    {v1.year} {v1.make} {v1.model}
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {getDisplayProps(v1).bodyType} · {getDisplayProps(v1).fuelType}
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Right column: Car B selector (disabled until Car A is selected) */}
+            <DiscoveryPanel
+              title="Car B"
+              vehicle={v2}
+              filters={filtersB}
+              setFilters={setFiltersB}
+              filteredVehicles={filteredVehiclesB}
+              makes={makes}
+              models={modelsB}
+              bodyTypes={bodyTypesB}
+              fuelTypes={fuelTypesB}
+              onSelectVehicle={selectCarB}
+              disabled={!v1}
+            />
+          </div>
+        )}
 
         {/* Comparison table — shows as soon as Car A is selected */}
         {v1 && (
@@ -196,16 +220,27 @@ export default function ComparisonPage() {
                 {/* Car A */}
                 <div className="p-3 sm:p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                        {v1.year} {v1.make} {v1.model}
-                      </h2>
-                      {specs1?.selectedTrim.name && (
-                        <p className="text-xs text-slate-500 truncate">{specs1.selectedTrim.name}</p>
+                    <div className="flex items-start gap-2 flex-1 min-w-0">
+                      {/* Future: photo reel (exterior + interior) lives on Profile page; Compare stays compact. */}
+                      {v1.images[0] && (
+                        <img
+                          src={v1.images[0]}
+                          alt=""
+                          className="w-16 h-12 object-cover rounded flex-shrink-0 bg-slate-100"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
                       )}
-                      <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
-                        ${specs1?.totalPrice.toLocaleString()}
-                      </p>
+                      <div className="min-w-0">
+                        <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                          {v1.year} {v1.make} {v1.model}
+                        </h2>
+                        {specs1?.selectedTrim.name && (
+                          <p className="text-xs text-slate-500 truncate">{specs1.selectedTrim.name}</p>
+                        )}
+                        <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                          ${specs1?.totalPrice.toLocaleString()}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <button
@@ -236,7 +271,7 @@ export default function ComparisonPage() {
                         Change
                       </button>
                       <button
-                        onClick={() => selectCarA(null)}
+                        onClick={() => { selectCarA(null); selectCarB(null); }}
                         className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
                         title="Remove Car A"
                       >
@@ -250,20 +285,30 @@ export default function ComparisonPage() {
                 <div className="p-3 sm:p-4">
                   {!v2 ? (
                     <div className="flex items-center justify-center h-full min-h-[56px]">
-                      <p className="text-sm text-slate-400">Select Car B above to compare</p>
+                      <p className="text-sm text-slate-400">No Car B selected</p>
                     </div>
                   ) : (
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
-                          {v2.year} {v2.make} {v2.model}
-                        </h2>
-                        {specs2?.selectedTrim.name && (
-                          <p className="text-xs text-slate-500 truncate">{specs2.selectedTrim.name}</p>
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        {v2.images[0] && (
+                          <img
+                            src={v2.images[0]}
+                            alt=""
+                            className="w-16 h-12 object-cover rounded flex-shrink-0 bg-slate-100"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
                         )}
-                        <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
-                          ${specs2?.totalPrice.toLocaleString()}
-                        </p>
+                        <div className="min-w-0">
+                          <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                            {v2.year} {v2.make} {v2.model}
+                          </h2>
+                          {specs2?.selectedTrim.name && (
+                            <p className="text-xs text-slate-500 truncate">{specs2.selectedTrim.name}</p>
+                          )}
+                          <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                            ${specs2?.totalPrice.toLocaleString()}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
@@ -303,40 +348,6 @@ export default function ComparisonPage() {
                       </div>
                     </div>
                   )}
-                </div>
-              </div>
-            </div>
-
-            {/* Overview — always visible when Car A selected */}
-            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mb-4">
-              <div className="p-4 bg-slate-50 border-b border-slate-200">
-                <h3 className="text-lg font-bold text-slate-900">Overview</h3>
-              </div>
-              <div className="border-t border-slate-200">
-                {/* Column header row */}
-                <div className="grid grid-cols-[200px_1fr_1fr] divide-x divide-slate-200 border-b border-slate-200 bg-slate-100/60">
-                  <div className="p-3" />
-                  <div className="p-3 text-xs font-semibold text-slate-700 truncate">
-                    {v1.year} {v1.make} {v1.model}
-                  </div>
-                  <div className="p-3 text-xs font-semibold text-slate-500 truncate">
-                    {v2 ? `${v2.year} ${v2.make} ${v2.model}` : 'Add Car B ↑'}
-                  </div>
-                </div>
-                <ComparisonRow label="Body Type" v1={specs1?.specs.overview.bodyType} v2={specs2?.specs.overview.bodyType} carBSelected={!!v2} />
-                <ComparisonRow label="Fuel Type" v1={specs1?.specs.overview.fuelType} v2={specs2?.specs.overview.fuelType} carBSelected={!!v2} />
-                <ComparisonRow label="Drivetrain" v1={specs1?.specs.overview.drivetrain} v2={specs2?.specs.overview.drivetrain} carBSelected={!!v2} />
-                <ComparisonRow label="Transmission" v1={specs1?.specs.overview.transmission} v2={specs2?.specs.overview.transmission} carBSelected={!!v2} />
-                <ComparisonRow label="Seating" v1={specs1?.specs.overview.seating} v2={specs2?.specs.overview.seating} carBSelected={!!v2} />
-                <ComparisonRow label="Warranty" v1={specs1?.specs.overview.warranty} v2={specs2?.specs.overview.warranty} carBSelected={!!v2} />
-
-                <div className="p-6 bg-slate-50/50 border-t border-slate-200">
-                  <div className="flex items-center gap-3 text-slate-500">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-                    </svg>
-                    <p className="italic text-sm">AI Overview coming soon</p>
-                  </div>
                 </div>
               </div>
             </div>
@@ -473,6 +484,40 @@ export default function ComparisonPage() {
               </div>
             </ComparisonSection>
 
+            {/* Overview — always visible when Car A selected */}
+            <div className="bg-white rounded-lg border border-slate-200 overflow-hidden mb-4">
+              <div className="p-4 bg-slate-50 border-b border-slate-200">
+                <h3 className="text-lg font-bold text-slate-900">Overview</h3>
+              </div>
+              <div className="border-t border-slate-200">
+                {/* Column header row */}
+                <div className="grid grid-cols-[200px_1fr_1fr] divide-x divide-slate-200 border-b border-slate-200 bg-slate-100/60">
+                  <div className="p-3" />
+                  <div className="p-3 text-xs font-semibold text-slate-700 truncate">
+                    {v1.year} {v1.make} {v1.model}
+                  </div>
+                  <div className="p-3 text-xs font-semibold text-slate-500 truncate">
+                    {v2 ? `${v2.year} ${v2.make} ${v2.model}` : 'Add Car B ↑'}
+                  </div>
+                </div>
+                <ComparisonRow label="Body Type" v1={specs1?.specs.overview.bodyType} v2={specs2?.specs.overview.bodyType} carBSelected={!!v2} />
+                <ComparisonRow label="Fuel Type" v1={specs1?.specs.overview.fuelType} v2={specs2?.specs.overview.fuelType} carBSelected={!!v2} />
+                <ComparisonRow label="Drivetrain" v1={specs1?.specs.overview.drivetrain} v2={specs2?.specs.overview.drivetrain} carBSelected={!!v2} />
+                <ComparisonRow label="Transmission" v1={specs1?.specs.overview.transmission} v2={specs2?.specs.overview.transmission} carBSelected={!!v2} />
+                <ComparisonRow label="Seating" v1={specs1?.specs.overview.seating} v2={specs2?.specs.overview.seating} carBSelected={!!v2} />
+                <ComparisonRow label="Warranty" v1={specs1?.specs.overview.warranty} v2={specs2?.specs.overview.warranty} carBSelected={!!v2} />
+
+                <div className="p-6 bg-slate-50/50 border-t border-slate-200">
+                  <div className="flex items-center gap-3 text-slate-500">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+                    </svg>
+                    <p className="italic text-sm">AI Overview coming soon</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <ComparisonSection title="Efficiency" sectionKey="efficiency" expanded={expandedSections.efficiency} onToggle={() => toggleSection('efficiency')}>
               <ComparisonRow label="Fuel Economy" v1={specs1?.specs.efficiency.fuelEconomy} v2={specs2?.specs.efficiency.fuelEconomy} carBSelected={!!v2} />
               <ComparisonRow label="Real-World Estimate" v1={specs1?.specs.efficiency.realWorldEstimate} v2={specs2?.specs.efficiency.realWorldEstimate} carBSelected={!!v2} />
@@ -555,68 +600,6 @@ function DiscoveryPanel({
         <div className="text-center">
           <h2 className="text-2xl font-bold text-slate-400 mb-2">{title}</h2>
           <p className="text-slate-400">Select Car A first to enable comparison</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (vehicle) {
-    const dp = getDisplayProps(vehicle);
-    return (
-      <div className="bg-white rounded-lg border-2 border-slate-900 min-h-[600px] flex flex-col overflow-hidden">
-        <div className="sticky top-0 bg-white z-10 border-b border-slate-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-slate-900 truncate">
-                {vehicle.year} {vehicle.make} {vehicle.model}
-              </h3>
-              <p className="text-sm text-slate-600">{dp.bodyType}</p>
-            </div>
-            <button
-              onClick={() => onSelectVehicle(null)}
-              className="ml-3 px-3 py-1.5 text-sm rounded-lg border border-slate-300 hover:bg-slate-50 flex-shrink-0"
-            >
-              Change
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-y-auto flex-1">
-          <div className="p-6">
-            <div className="aspect-[4/3] bg-slate-100 rounded-lg overflow-hidden mb-4">
-              {dp.imageUrl ? (
-                <img src={dp.imageUrl} alt={`${vehicle.make} ${vehicle.model}`} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>
-              )}
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-slate-600 mb-1">Starting Price</p>
-                <p className="text-3xl font-bold text-slate-900">
-                  ${dp.basePrice.toLocaleString()}
-                </p>
-              </div>
-
-              {vehicle.trims.length > 1 && (
-                <div>
-                  <p className="text-sm font-medium text-slate-700 mb-2">Available Trims</p>
-                  <div className="space-y-1">
-                    {vehicle.trims.map(trim => {
-                      const delta = trim.basePrice - vehicle.trims[0].basePrice;
-                      return (
-                        <div key={trim.id} className="text-sm text-slate-600 flex justify-between">
-                          <span>{trim.name}</span>
-                          <span>{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     );
