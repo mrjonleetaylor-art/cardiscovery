@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { AdvancedFilters, countActiveAdvancedFilters } from '../../lib/advancedFilters';
-import { DoubleRangeSlider, SingleMaxSlider } from './RangeSlider';
+import { DoubleRangeSlider, SingleMaxSlider, SingleMinSlider } from './RangeSlider';
 
 const DRIVETRAINS = ['FWD', 'RWD', 'AWD'];
 const TRANSMISSIONS = ['Automatic', 'Manual', 'CVT', 'Dual-clutch'];
@@ -38,32 +38,6 @@ function MultiChip({
           {opt}
         </button>
       ))}
-    </div>
-  );
-}
-
-function NumInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
-      <input
-        type="number"
-        value={value ?? ''}
-        onChange={(e) => {
-          const v = e.target.value === '' ? null : Number(e.target.value);
-          onChange(v);
-        }}
-        placeholder="—"
-        className="w-full px-2 py-1.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-      />
     </div>
   );
 }
@@ -131,18 +105,18 @@ export function AdvancedFiltersPanel({
               <div className="space-y-5">
                 <DoubleRangeSlider
                   label="Power (kW)"
-                  min={50}
-                  max={800}
-                  step={5}
+                  min={0}
+                  max={1600}
+                  step={10}
                   valueMin={value.powerMin}
                   valueMax={value.powerMax}
                   onChange={(mn, mx) => onChange({ ...value, powerMin: mn, powerMax: mx })}
                   unit="kW"
                 />
                 <SingleMaxSlider
-                  label="0–100 km/h max"
+                  label="0–100 km/h max (s)"
                   min={1.5}
-                  max={15}
+                  max={10.0}
                   step={0.1}
                   value={value.zeroToHundredMax}
                   onChange={(v) => onChange({ ...value, zeroToHundredMax: v })}
@@ -179,10 +153,14 @@ export function AdvancedFiltersPanel({
                     onChange={(v) => onChange({ ...value, transmissions: v })}
                   />
                 </div>
-                <NumInput
+                <SingleMinSlider
                   label="Warranty min (years)"
+                  min={0}
+                  max={10}
+                  step={1}
                   value={value.warrantyMin}
                   onChange={(v) => onChange({ ...value, warrantyMin: v })}
+                  unit="yr"
                 />
               </div>
             </div>
@@ -190,17 +168,27 @@ export function AdvancedFiltersPanel({
 
           {/* Efficiency */}
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Efficiency</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <NumInput
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Efficiency</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <SingleMaxSlider
                 label="Fuel economy max (L/100km)"
+                min={4}
+                max={30}
+                step={0.5}
                 value={value.fuelEconomyMax}
                 onChange={(v) => onChange({ ...value, fuelEconomyMax: v })}
+                unit="L/100km"
+                formatValue={(v) => v.toFixed(1)}
               />
-              <NumInput
+              <SingleMaxSlider
                 label="Annual running cost max (AUD)"
+                min={0}
+                max={15000}
+                step={100}
                 value={value.annualRunningCostMax}
                 onChange={(v) => onChange({ ...value, annualRunningCostMax: v })}
+                unit="AUD"
+                formatValue={(v) => `$${v.toLocaleString()}`}
               />
             </div>
           </div>
@@ -232,18 +220,21 @@ export function AdvancedFiltersPanel({
             </div>
           </div>
 
-          {/* Clear advanced filters */}
-          {count > 0 && (
-            <div className="pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={onClear}
-                className="text-sm text-slate-700 hover:text-slate-900 font-medium"
-              >
-                Clear advanced filters
-              </button>
-            </div>
-          )}
+          {/* Reset advanced */}
+          <div className="pt-2 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={onClear}
+              disabled={count === 0}
+              className={`text-sm font-medium transition-colors ${
+                count > 0
+                  ? 'text-slate-700 hover:text-slate-900'
+                  : 'text-slate-300 cursor-default'
+              }`}
+            >
+              Reset advanced
+            </button>
+          </div>
         </div>
       )}
     </div>
