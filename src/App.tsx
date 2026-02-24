@@ -7,6 +7,26 @@ import Comparisons from './components/Comparisons';
 import GaragePage from './components/GaragePage';
 import { seedDatabase } from './lib/seedDatabase';
 
+type CarFinderWindowEventMap = {
+  'garage-updated': Event;
+  'view-vehicle': CustomEvent<{ vehicleId: string }>;
+  'navigate-compare': Event | CustomEvent<{ vehicleId?: string }>;
+};
+
+function addCarFinderEventListener<K extends keyof CarFinderWindowEventMap>(
+  eventName: K,
+  handler: (event: CarFinderWindowEventMap[K]) => void
+) {
+  window.addEventListener(eventName, handler as EventListener);
+}
+
+function removeCarFinderEventListener<K extends keyof CarFinderWindowEventMap>(
+  eventName: K,
+  handler: (event: CarFinderWindowEventMap[K]) => void
+) {
+  window.removeEventListener(eventName, handler as EventListener);
+}
+
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<'discovery' | 'vehicle' | 'compare' | 'garage'>('discovery');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -24,27 +44,27 @@ function AppContent() {
       setCurrentPage('vehicle');
     };
 
-    const handleNavigateCompare = (event: Event) => {
-      const vehicleId = (event as CustomEvent).detail?.vehicleId ?? null;
+    const handleNavigateCompare = (event: CarFinderWindowEventMap['navigate-compare']) => {
+      const vehicleId = event instanceof CustomEvent ? (event.detail?.vehicleId ?? null) : null;
       setComparePrefillId(vehicleId);
       setCurrentPage('compare');
       setSelectedVehicleId(null);
     };
 
-    window.addEventListener('garage-updated', handleGarageUpdate);
-    window.addEventListener('view-vehicle' as any, handleViewVehicle as any);
-    window.addEventListener('navigate-compare', handleNavigateCompare);
+    addCarFinderEventListener('garage-updated', handleGarageUpdate);
+    addCarFinderEventListener('view-vehicle', handleViewVehicle);
+    addCarFinderEventListener('navigate-compare', handleNavigateCompare);
 
     return () => {
-      window.removeEventListener('garage-updated', handleGarageUpdate);
-      window.removeEventListener('view-vehicle' as any, handleViewVehicle as any);
-      window.removeEventListener('navigate-compare', handleNavigateCompare);
+      removeCarFinderEventListener('garage-updated', handleGarageUpdate);
+      removeCarFinderEventListener('view-vehicle', handleViewVehicle);
+      removeCarFinderEventListener('navigate-compare', handleNavigateCompare);
     };
   }, [currentPage]);
 
   const handleNavigate = (page: string) => {
     if (page === 'discovery' || page === 'garage' || page === 'compare') {
-      setCurrentPage(page as any);
+      setCurrentPage(page);
       setSelectedVehicleId(null);
     }
   };

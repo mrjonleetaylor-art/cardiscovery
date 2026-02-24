@@ -7,7 +7,6 @@ import { AdvancedFiltersPanel } from '../../filters/AdvancedFiltersPanel';
 
 export function DiscoveryPanel({
   title,
-  vehicle: _vehicle,
   filters,
   setFilters,
   advancedFilters,
@@ -21,7 +20,6 @@ export function DiscoveryPanel({
   disabled,
 }: {
   title: string;
-  vehicle: StructuredVehicle | null;
   filters: Filters;
   setFilters: (f: Filters) => void;
   advancedFilters: AdvancedFilters;

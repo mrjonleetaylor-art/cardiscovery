@@ -1,19 +1,21 @@
+import { STORAGE_KEYS } from './storageKeys';
+
 export const getSessionId = (): string => {
-  let sessionId = localStorage.getItem('session_id');
+  let sessionId = localStorage.getItem(STORAGE_KEYS.sessionId);
   if (!sessionId) {
     sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('session_id', sessionId);
+    localStorage.setItem(STORAGE_KEYS.sessionId, sessionId);
   }
   return sessionId;
 };
 
 export const getGarageItems = (): string[] => {
-  const garage = localStorage.getItem('garage_items');
+  const garage = localStorage.getItem(STORAGE_KEYS.garageItems);
   return garage ? JSON.parse(garage) : [];
 };
 
 export const setGarageItems = (items: string[]): void => {
-  localStorage.setItem('garage_items', JSON.stringify(items));
+  localStorage.setItem(STORAGE_KEYS.garageItems, JSON.stringify(items));
 };
 
 export const addToGarage = (vehicleId: string): void => {

@@ -1,3 +1,10 @@
+export type JSONPrimitive = string | number | boolean | null;
+export type JSONValue = JSONPrimitive | JSONObject | JSONArray;
+export interface JSONObject {
+  [key: string]: JSONValue;
+}
+export type JSONArray = JSONValue[];
+
 export interface TrimOption {
   name: string;
   price_adjustment: number;
@@ -140,9 +147,9 @@ export interface Lead {
   timeline: string;
   has_trade_in: boolean;
   notes?: string;
-  selected_vehicles: any;
-  garage_vehicles: any;
-  preferences: any;
+  selected_vehicles: JSONValue;
+  garage_vehicles: JSONValue;
+  preferences: JSONValue;
   lead_summary?: string;
   status: string;
   assigned_dealer_id?: string;
@@ -156,6 +163,6 @@ export interface UserActivity {
   session_id?: string;
   activity_type: string;
   vehicle_id: string;
-  metadata?: any;
+  metadata?: JSONValue;
   created_at: string;
 }

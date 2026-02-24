@@ -1,8 +1,7 @@
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
-export function ComparisonSection({ title, sectionKey: _sectionKey, expanded, onToggle, children }: {
+export function ComparisonSection({ title, expanded, onToggle, children }: {
   title: string;
-  sectionKey: string;
   expanded: boolean;
   onToggle: () => void;
   children: React.ReactNode;

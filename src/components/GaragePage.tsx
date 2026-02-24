@@ -5,6 +5,7 @@ import { UserPreferences } from '../types';
 import { structuredVehicles } from '../data/structuredVehicles';
 import { getGarageItems, removeFromGarage } from '../lib/session';
 import { supabase } from '../lib/supabase';
+import { STORAGE_KEYS } from '../lib/storageKeys';
 
 export default function GaragePage() {
   const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
@@ -29,16 +30,16 @@ export default function GaragePage() {
   };
 
   const loadPreferences = () => {
-    const stored = localStorage.getItem('user_preferences');
+    const stored = localStorage.getItem(STORAGE_KEYS.userPreferences);
     if (stored) {
       setPreferences(JSON.parse(stored));
     }
   };
 
   const savePreferences = async () => {
-    localStorage.setItem('user_preferences', JSON.stringify(preferences));
+    localStorage.setItem(STORAGE_KEYS.userPreferences, JSON.stringify(preferences));
 
-    const sessionId = localStorage.getItem('session_id');
+    const sessionId = localStorage.getItem(STORAGE_KEYS.sessionId);
     if (sessionId) {
       await supabase.from('user_preferences').upsert({
         session_id: sessionId,
@@ -52,8 +53,8 @@ export default function GaragePage() {
 
   const handleRemove = (vehicleId: string) => {
     removeFromGarage(vehicleId);
-    setVehicles(vehicles.filter(v => v.id !== vehicleId));
-    setSelectedIds(selectedIds.filter(id => id !== vehicleId));
+    setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+    setSelectedIds(prev => prev.filter(id => id !== vehicleId));
     window.dispatchEvent(new Event('garage-updated'));
   };
 
@@ -67,7 +68,7 @@ export default function GaragePage() {
 
   const handleCompare = () => {
     if (selectedIds.length === 2) {
-      localStorage.setItem('compare_list', JSON.stringify(selectedIds));
+      localStorage.setItem(STORAGE_KEYS.compareList, JSON.stringify(selectedIds));
       window.dispatchEvent(new Event('navigate-compare'));
     }
   };

@@ -86,14 +86,18 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
     if (!vehicle) return;
     if (isInGarage(vehicle.id)) {
       removeFromGarage(vehicle.id);
-      const updated = [...inGarage] as [boolean, boolean];
-      updated[index] = false;
-      setInGarage(updated);
+      setInGarage(prev => {
+        const updated = [...prev] as [boolean, boolean];
+        updated[index] = false;
+        return updated;
+      });
     } else {
       addToGarage(vehicle.id);
-      const updated = [...inGarage] as [boolean, boolean];
-      updated[index] = true;
-      setInGarage(updated);
+      setInGarage(prev => {
+        const updated = [...prev] as [boolean, boolean];
+        updated[index] = true;
+        return updated;
+      });
     }
     window.dispatchEvent(new Event('garage-updated'));
   };
@@ -103,11 +107,13 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
   };
 
   const togglePack = (index: 0 | 1, packId: string) => {
-    const newPackIds = [...selectedPackIds] as [string[], string[]];
-    newPackIds[index] = newPackIds[index].includes(packId)
-      ? newPackIds[index].filter(id => id !== packId)
-      : [...newPackIds[index], packId];
-    setSelectedPackIds(newPackIds);
+    setSelectedPackIds(prev => {
+      const newPackIds = [...prev] as [string[], string[]];
+      newPackIds[index] = newPackIds[index].includes(packId)
+        ? newPackIds[index].filter(id => id !== packId)
+        : [...newPackIds[index], packId];
+      return newPackIds;
+    });
   };
 
   const selectCarA = (vehicle: StructuredVehicle | null) => {
@@ -186,7 +192,6 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
             {!v1 ? (
               <DiscoveryPanel
                 title="Car A"
-                vehicle={v1}
                 filters={filtersA}
                 setFilters={setFiltersA}
                 advancedFilters={advancedFiltersA}
@@ -219,7 +224,6 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
             {!v2 ? (
               <DiscoveryPanel
                 title="Car B"
-                vehicle={v2}
                 filters={filtersB}
                 setFilters={setFiltersB}
                 advancedFilters={advancedFiltersB}
@@ -260,7 +264,6 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
             {/* Trim & Options */}
             <ComparisonSection
               title="Trim & Options"
-              sectionKey="trim"
               expanded={expandedSections.trim}
               onToggle={() => toggleSection('trim')}
             >
@@ -425,7 +428,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
               </div>
             </div>
 
-            <ComparisonSection title="Efficiency" sectionKey="efficiency" expanded={expandedSections.efficiency} onToggle={() => toggleSection('efficiency')}>
+            <ComparisonSection title="Efficiency" expanded={expandedSections.efficiency} onToggle={() => toggleSection('efficiency')}>
               <ComparisonRow label="Fuel Economy" v1={specs1?.specs.efficiency.fuelEconomy} v2={specs2?.specs.efficiency.fuelEconomy} carBSelected={!!v2} />
               <ComparisonRow label="Real-World Estimate" v1={specs1?.specs.efficiency.realWorldEstimate} v2={specs2?.specs.efficiency.realWorldEstimate} carBSelected={!!v2} />
               <ComparisonRow label="Fuel Tank" v1={specs1?.specs.efficiency.fuelTank} v2={specs2?.specs.efficiency.fuelTank} carBSelected={!!v2} />
@@ -434,7 +437,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
               <ComparisonRow label="Annual Running Cost" v1={specs1?.specs.efficiency.annualRunningCost} v2={specs2?.specs.efficiency.annualRunningCost} carBSelected={!!v2} />
             </ComparisonSection>
 
-            <ComparisonSection title="Performance" sectionKey="performance" expanded={expandedSections.performance} onToggle={() => toggleSection('performance')}>
+            <ComparisonSection title="Performance" expanded={expandedSections.performance} onToggle={() => toggleSection('performance')}>
               <ComparisonRow label="Power" v1={specs1?.specs.performance.power} v2={specs2?.specs.performance.power} carBSelected={!!v2} />
               <ComparisonRow label="Torque" v1={specs1?.specs.performance.torque} v2={specs2?.specs.performance.torque} carBSelected={!!v2} />
               <ComparisonRow label="0-100 km/h" v1={specs1?.specs.performance.zeroToHundred} v2={specs2?.specs.performance.zeroToHundred} carBSelected={!!v2} />
@@ -445,7 +448,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
               <ComparisonRow label="Suspension" v1={specs1?.specs.performance.suspension} v2={specs2?.specs.performance.suspension} carBSelected={!!v2} />
             </ComparisonSection>
 
-            <ComparisonSection title="Connectivity" sectionKey="connectivity" expanded={expandedSections.connectivity} onToggle={() => toggleSection('connectivity')}>
+            <ComparisonSection title="Connectivity" expanded={expandedSections.connectivity} onToggle={() => toggleSection('connectivity')}>
               <ComparisonRow label="Screen Size" v1={specs1?.specs.connectivity.screenSize} v2={specs2?.specs.connectivity.screenSize} carBSelected={!!v2} />
               <ComparisonRow label="Digital Cluster" v1={specs1?.specs.connectivity.digitalCluster} v2={specs2?.specs.connectivity.digitalCluster} carBSelected={!!v2} />
               <ComparisonRow label="Apple CarPlay" v1={specs1?.specs.connectivity.appleCarPlay} v2={specs2?.specs.connectivity.appleCarPlay} carBSelected={!!v2} />
@@ -456,7 +459,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
               <ComparisonRow label="OTA Updates" v1={specs1?.specs.connectivity.otaUpdates} v2={specs2?.specs.connectivity.otaUpdates} carBSelected={!!v2} />
             </ComparisonSection>
 
-            <ComparisonSection title="Safety" sectionKey="safety" expanded={expandedSections.safety} onToggle={() => toggleSection('safety')}>
+            <ComparisonSection title="Safety" expanded={expandedSections.safety} onToggle={() => toggleSection('safety')}>
               <ComparisonRow label="ANCAP Rating" v1={specs1?.specs.safety.ancapRating} v2={specs2?.specs.safety.ancapRating} carBSelected={!!v2} />
               <ComparisonRow label="Airbags" v1={specs1?.specs.safety.airbags} v2={specs2?.specs.safety.airbags} carBSelected={!!v2} />
               <ComparisonRow label="AEB" v1={specs1?.specs.safety.aeb} v2={specs2?.specs.safety.aeb} carBSelected={!!v2} />

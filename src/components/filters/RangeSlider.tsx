@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 
 // Tailwind thumb classes — written as a single string so the JIT scanner finds every class.
@@ -33,6 +33,24 @@ function rangeLabel(
   if (valueMin !== null && valueMax === null) return `≥\u202f${fmt(valueMin)}\u202f${unit}`;
   if (valueMin === null && valueMax !== null) return `≤\u202f${fmt(valueMax)}\u202f${unit}`;
   return `${fmt(valueMin!)}\u2013${fmt(valueMax!)}\u202f${unit}`;
+}
+
+/**
+ * Converts a pointer clientX into a value snapped to `step` and clamped to [min, max].
+ * Uses the track element's bounding rect for accurate pixel-to-value mapping.
+ */
+function valueFromPointer(
+  clientX: number,
+  trackEl: HTMLElement,
+  min: number,
+  max: number,
+  step: number,
+): number {
+  const rect = trackEl.getBoundingClientRect();
+  const fraction = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+  const raw = min + fraction * (max - min);
+  const snapped = Math.round((raw - min) / step) * step + min;
+  return Math.min(max, Math.max(min, snapped));
 }
 
 /**
@@ -90,6 +108,18 @@ function SliderInput({
   );
 }
 
+/*
+ * Manual QA checklist for track-click behaviour (all slider types):
+ *   ✓ Click near left end  → min thumb moves there (Double) / value set (Single)
+ *   ✓ Click near right end → max thumb moves there (Double) / value set (Single)
+ *   ✓ Click between thumbs → nearest thumb moves (Double)
+ *   ✓ Drag from track keeps the same thumb captured for the duration
+ *   ✓ Click cannot cross thumbs (clamped to the other thumb's value)
+ *   ✓ After click, arrow keys adjust the moved thumb (focus forwarded via ref)
+ *   ✓ Tab still cycles both thumbs in DoubleRangeSlider
+ *   ✓ Clicking a thumb itself does NOT trigger track logic (guarded by e.target check)
+ */
+
 /**
  * Double-ended (min + max) range slider.
  * Null on either end = "no constraint on that side".
@@ -119,6 +149,12 @@ export function DoubleRangeSlider({
   const displayMin = Math.min(max, Math.max(min, valueMin ?? min));
   const displayMax = Math.min(max, Math.max(min, valueMax ?? max));
 
+  // Refs for focus-forwarding after track clicks and drag tracking.
+  const minRef = useRef<HTMLInputElement>(null);
+  const maxRef = useRef<HTMLInputElement>(null);
+  const dragThumb = useRef<'min' | 'max' | null>(null);
+
+  // --- Native thumb handlers ---
   const handleMinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Math.min(Number(e.target.value), displayMax);
     onChange(v <= min ? null : v, valueMax);
@@ -129,6 +165,7 @@ export function DoubleRangeSlider({
     onChange(valueMin, v >= max ? null : v);
   };
 
+  // --- Numeric input handlers ---
   const handleInputMin = (v: number) => {
     const clamped = Math.min(v, displayMax);
     onChange(clamped <= min ? null : clamped, valueMax);
@@ -139,49 +176,58 @@ export function DoubleRangeSlider({
     onChange(valueMin, clamped >= max ? null : clamped);
   };
 
+  // --- Track click / drag handlers ---
+  const applyTrackValue = (v: number, thumb: 'min' | 'max') => {
+    if (thumb === 'min') {
+      const clamped = Math.min(v, displayMax);
+      onChange(clamped <= min ? null : clamped, valueMax);
+    } else {
+      const clamped = Math.max(v, displayMin);
+      onChange(valueMin, clamped >= max ? null : clamped);
+    }
+  };
+
+  const handleTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Let native thumb drag proceed uninterrupted.
+    if (e.target instanceof HTMLInputElement) return;
+
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
+
+    // Choose the thumb closest to the clicked value.
+    const thumb =
+      Math.abs(v - displayMin) <= Math.abs(v - displayMax) ? 'min' : 'max';
+    dragThumb.current = thumb;
+    applyTrackValue(v, thumb);
+
+    // Forward focus so arrow-key adjustments work immediately.
+    (thumb === 'min' ? minRef : maxRef).current?.focus();
+  };
+
+  const handleTrackPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId) || !dragThumb.current) return;
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
+    applyTrackValue(v, dragThumb.current);
+  };
+
+  const handleTrackPointerUp = () => {
+    dragThumb.current = null;
+  };
+
   const left = pct(displayMin, min, max);
   const right = 100 - pct(displayMax, min, max);
 
   return (
     <div>
+      {/* 1. Header */}
       <p className="text-xs font-medium text-slate-600 mb-2">
         {label}
         <span className="ml-1.5 font-normal text-slate-400">
           {rangeLabel(valueMin, valueMax, unit, formatValue)}
         </span>
       </p>
-      <div className="px-1">
-        <div className="relative h-2">
-          <div className="absolute inset-0 bg-slate-200 rounded-full" />
-          <div
-            className="absolute h-2 bg-slate-900 rounded-full"
-            style={{ left: `${left}%`, right: `${right}%` }}
-          />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayMin}
-            onChange={handleMinChange}
-            aria-label={`${label} minimum`}
-            className={THUMB_CLASSES}
-            style={{ zIndex: displayMin >= displayMax - step ? 5 : 3 }}
-          />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayMax}
-            onChange={handleMaxChange}
-            aria-label={`${label} maximum`}
-            className={THUMB_CLASSES}
-            style={{ zIndex: 4 }}
-          />
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2 mt-2">
+      {/* 2. Inputs above the track */}
+      <div className="grid grid-cols-2 gap-3">
         <SliderInput
           label="Min"
           value={displayMin}
@@ -198,6 +244,46 @@ export function DoubleRangeSlider({
           step={step}
           onChange={handleInputMax}
         />
+      </div>
+      {/* 3. Track */}
+      <div className="px-1 mt-2">
+        <div
+          className="relative h-2 cursor-pointer"
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={handleTrackPointerMove}
+          onPointerUp={handleTrackPointerUp}
+          onPointerCancel={handleTrackPointerUp}
+        >
+          <div className="absolute inset-0 bg-slate-200 rounded-full" />
+          <div
+            className="absolute h-2 bg-slate-900 rounded-full"
+            style={{ left: `${left}%`, right: `${right}%` }}
+          />
+          <input
+            ref={minRef}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={displayMin}
+            onChange={handleMinChange}
+            aria-label={`${label} min`}
+            className={THUMB_CLASSES}
+            style={{ zIndex: displayMin >= displayMax - step ? 5 : 3 }}
+          />
+          <input
+            ref={maxRef}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={displayMax}
+            onChange={handleMaxChange}
+            aria-label={`${label} max`}
+            className={THUMB_CLASSES}
+            style={{ zIndex: 4 }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -229,44 +315,45 @@ export function SingleMaxSlider({
   const displayVal = Math.min(max, Math.max(min, value ?? max));
   const right = 100 - pct(displayVal, min, max);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // --- Native thumb handler ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     onChange(v >= max ? null : v);
   };
 
+  // --- Numeric input handler ---
   const handleInput = (v: number) => {
+    onChange(v >= max ? null : v);
+  };
+
+  // --- Track click / drag handlers ---
+  const handleTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLInputElement) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
+    onChange(v >= max ? null : v);
+    inputRef.current?.focus();
+  };
+
+  const handleTrackPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
     onChange(v >= max ? null : v);
   };
 
   return (
     <div>
+      {/* 1. Header */}
       <p className="text-xs font-medium text-slate-600 mb-2">
         {label}
         <span className="ml-1.5 font-normal text-slate-400">
           {value === null ? 'Any' : `≤\u202f${formatValue(value)}\u202f${unit}`}
         </span>
       </p>
-      <div className="px-1">
-        <div className="relative h-2">
-          <div className="absolute inset-0 bg-slate-200 rounded-full" />
-          <div
-            className="absolute h-2 bg-slate-900 rounded-full"
-            style={{ left: '0%', right: `${right}%` }}
-          />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayVal}
-            onChange={handleChange}
-            aria-label={`${label} maximum`}
-            className={THUMB_CLASSES}
-            style={{ zIndex: 3 }}
-          />
-        </div>
-      </div>
-      <div className="flex items-end gap-1.5 mt-2">
+      {/* 2. Input + clear above the track */}
+      <div className="flex items-end gap-3">
         <div className="flex-1">
           <SliderInput
             label="Max"
@@ -287,6 +374,34 @@ export function SingleMaxSlider({
             <X className="w-3 h-3" />
           </button>
         )}
+      </div>
+      {/* 3. Track */}
+      <div className="px-1 mt-2">
+        <div
+          className="relative h-2 cursor-pointer"
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={handleTrackPointerMove}
+          onPointerUp={() => {}}
+          onPointerCancel={() => {}}
+        >
+          <div className="absolute inset-0 bg-slate-200 rounded-full" />
+          <div
+            className="absolute h-2 bg-slate-900 rounded-full"
+            style={{ left: '0%', right: `${right}%` }}
+          />
+          <input
+            ref={inputRef}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={displayVal}
+            onChange={handleChange}
+            aria-label={`${label} max`}
+            className={THUMB_CLASSES}
+            style={{ zIndex: 3 }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -319,44 +434,45 @@ export function SingleMinSlider({
   const displayVal = Math.min(max, Math.max(min, value ?? min));
   const left = pct(displayVal, min, max);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // --- Native thumb handler ---
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = Number(e.target.value);
     onChange(v <= min ? null : v);
   };
 
+  // --- Numeric input handler ---
   const handleInput = (v: number) => {
+    onChange(v <= min ? null : v);
+  };
+
+  // --- Track click / drag handlers ---
+  const handleTrackPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target instanceof HTMLInputElement) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
+    onChange(v <= min ? null : v);
+    inputRef.current?.focus();
+  };
+
+  const handleTrackPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+    const v = valueFromPointer(e.clientX, e.currentTarget, min, max, step);
     onChange(v <= min ? null : v);
   };
 
   return (
     <div>
+      {/* 1. Header */}
       <p className="text-xs font-medium text-slate-600 mb-2">
         {label}
         <span className="ml-1.5 font-normal text-slate-400">
           {value === null ? 'Any' : `≥\u202f${formatValue(value)}\u202f${unit}`}
         </span>
       </p>
-      <div className="px-1">
-        <div className="relative h-2">
-          <div className="absolute inset-0 bg-slate-200 rounded-full" />
-          <div
-            className="absolute h-2 bg-slate-900 rounded-full"
-            style={{ left: `${left}%`, right: '0%' }}
-          />
-          <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={displayVal}
-            onChange={handleChange}
-            aria-label={`${label} minimum`}
-            className={THUMB_CLASSES}
-            style={{ zIndex: 3 }}
-          />
-        </div>
-      </div>
-      <div className="flex items-end gap-1.5 mt-2">
+      {/* 2. Input + clear above the track */}
+      <div className="flex items-end gap-3">
         <div className="flex-1">
           <SliderInput
             label="Min"
@@ -377,6 +493,34 @@ export function SingleMinSlider({
             <X className="w-3 h-3" />
           </button>
         )}
+      </div>
+      {/* 3. Track */}
+      <div className="px-1 mt-2">
+        <div
+          className="relative h-2 cursor-pointer"
+          onPointerDown={handleTrackPointerDown}
+          onPointerMove={handleTrackPointerMove}
+          onPointerUp={() => {}}
+          onPointerCancel={() => {}}
+        >
+          <div className="absolute inset-0 bg-slate-200 rounded-full" />
+          <div
+            className="absolute h-2 bg-slate-900 rounded-full"
+            style={{ left: `${left}%`, right: '0%' }}
+          />
+          <input
+            ref={inputRef}
+            type="range"
+            min={min}
+            max={max}
+            step={step}
+            value={displayVal}
+            onChange={handleChange}
+            aria-label={`${label} min`}
+            className={THUMB_CLASSES}
+            style={{ zIndex: 3 }}
+          />
+        </div>
       </div>
     </div>
   );

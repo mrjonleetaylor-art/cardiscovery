@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Plus, Minus, Check } from 'lucide-react';
-import { StructuredVehicle } from '../types/specs';
 import { structuredVehicles } from '../data/structuredVehicles';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
 import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
+import { STORAGE_KEYS } from '../lib/storageKeys';
+import { getDisplayProps } from './compare/utils/display';
 
 interface Filters {
   search: string;
@@ -14,16 +15,6 @@ interface Filters {
   fuelType: string;
   budgetMin: number;
   budgetMax: number;
-}
-
-function getDisplayProps(v: StructuredVehicle) {
-  const t = v.trims[0];
-  return {
-    bodyType: t?.specs.overview.bodyType ?? '',
-    fuelType: t?.specs.overview.fuelType ?? '',
-    basePrice: t?.basePrice ?? 0,
-    imageUrl: v.images[0] ?? '',
-  };
 }
 
 export default function Discovery() {
@@ -47,12 +38,12 @@ export default function Discovery() {
   }, []);
 
   const loadGarageState = () => {
-    const garage = localStorage.getItem('garage_items');
+    const garage = localStorage.getItem(STORAGE_KEYS.garageItems);
     setGarageItems(garage ? JSON.parse(garage) : []);
   };
 
   const loadCompareState = () => {
-    const compare = localStorage.getItem('compare_list');
+    const compare = localStorage.getItem(STORAGE_KEYS.compareList);
     setCompareList(compare ? JSON.parse(compare) : []);
   };
 
@@ -114,7 +105,7 @@ export default function Discovery() {
       : [...compareList, vehicleId].slice(0, 2);
 
     setCompareList(newCompareList);
-    localStorage.setItem('compare_list', JSON.stringify(newCompareList));
+    localStorage.setItem(STORAGE_KEYS.compareList, JSON.stringify(newCompareList));
 
     if (!isRemoving && newCompareList.length >= 1) {
       setTimeout(() => {
