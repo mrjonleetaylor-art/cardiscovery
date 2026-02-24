@@ -96,6 +96,10 @@ export interface StructuredVehicle {
   tradeOffs?: string[];
   positioningSummary?: string;
   trims: Trim[];
+  /** Layer 1 — powertrain / variant options. Optional; vehicles without this are unaffected. */
+  variants?: import('./config').ConfigOption[];
+  /** Layer 2 — secondary configuration (body style, drivetrain mode, etc.). */
+  subvariants?: import('./config').ConfigOption[];
 }
 
 export interface ResolvedSpecs {

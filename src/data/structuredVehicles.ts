@@ -61,7 +61,10 @@ export const structuredVehicles: StructuredVehicle[] = [
     make: 'Tesla',
     model: 'Model 3',
     year: 2024,
-    images: ['https://images.pexels.com/photos/13861/IMG_3425.jpg'],
+    images: [
+      'https://images.pexels.com/photos/13861/IMG_3425.jpg',
+      'https://images.pexels.com/photos/3752169/pexels-photo-3752169.jpeg',
+    ],
     tags: ['electric', 'performance', 'tech-forward', 'efficient'],
     aiSummary: 'The electric benchmark — effortless daily driving with class-leading technology.',
     bestFor: ['Tech enthusiasts', 'Daily commuters', 'First EV buyers', 'Performance seekers'],
@@ -144,6 +147,29 @@ export const structuredVehicles: StructuredVehicle[] = [
           safety: { ancapRating: '5 stars', adaptiveCruise: 'Autopilot standard', blindSpotMonitoring: 'Standard', laneKeepAssist: 'Standard', aeb: 'Standard', airbags: 8, rearCrossTraffic: 'Standard', safetySummary: 'Full active safety suite. Track Mode integrates traction controls.' },
         },
         packs: [],
+      },
+    ],
+    // Layer 1 variants — powertrain configuration
+    variants: [
+      {
+        id: 'model3-config-standard',
+        name: 'Standard',
+        description: 'Base powertrain. Specs as per selected trim.',
+        effects: [],
+      },
+      {
+        id: 'model3-config-performance',
+        name: 'Performance',
+        description: 'Track-tuned output. Increases peak power, sharpens acceleration, and lowers the suspension.',
+        priceDelta: 15000,
+        effects: [
+          { path: 'specs.performance.power', op: 'set', value: '460 kW' },
+          { path: 'specs.performance.zeroToHundred', op: 'set', value: '3.1s' },
+          { path: 'specs.performance.suspension', op: 'set', value: 'Adaptive dampers / multi-link (lowered)' },
+          { path: 'specs.performance.drivingCharacter', op: 'set', value: 'Supercar performance in a family sedan. Track-tuned suspension with supercar launch.' },
+          // Replace gallery with the performance-focused image
+          { path: 'images', op: 'replace', value: ['https://images.pexels.com/photos/3752169/pexels-photo-3752169.jpeg'] },
+        ],
       },
     ],
   },
@@ -291,6 +317,46 @@ export const structuredVehicles: StructuredVehicle[] = [
           safety: { ancapRating: '5 stars', adaptiveCruise: 'Standard', blindSpotMonitoring: 'Standard', laneKeepAssist: 'Standard', aeb: 'Standard', airbags: 6, rearCrossTraffic: 'Standard', safetySummary: 'All driver assistance standard. xDrive AWD adds traction in adverse conditions.' },
         },
         packs: [],
+      },
+    ],
+    // Layer 1 variants — line / exterior package
+    variants: [
+      {
+        id: 'bmw3-variant-standard',
+        name: 'Sport Line',
+        description: 'Standard exterior and interior treatment.',
+        effects: [],
+      },
+      {
+        id: 'bmw3-variant-msport',
+        name: 'M Sport',
+        description: 'M aerodynamic kit, 19" M alloys, sport steering wheel, and M-tuned suspension.',
+        priceDelta: 3500,
+        effects: [
+          { path: 'specs.performance.suspension', op: 'set', value: 'M Sport suspension (10 mm lower)' },
+          { path: 'specs.overview.transmission', op: 'set', value: '8-speed M Sport automatic' },
+          { path: 'specs.performance.drivingCharacter', op: 'set', value: 'Sharper and more communicative. M Sport suspension and steering calibration elevate the driving experience.' },
+        ],
+      },
+    ],
+    // Layer 2 subvariants — body style
+    subvariants: [
+      {
+        id: 'bmw3-body-sedan',
+        name: 'Sedan',
+        description: 'Classic three-box silhouette.',
+        effects: [],
+      },
+      {
+        id: 'bmw3-body-touring',
+        name: 'Touring',
+        description: 'Estate body with expanded cargo capacity.',
+        priceDelta: 2500,
+        effects: [
+          { path: 'specs.overview.bodyType', op: 'set', value: 'Wagon' },
+          // Hero override — same base URL demonstrates the mechanism cleanly
+          { path: 'images.hero', op: 'set', value: 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg' },
+        ],
       },
     ],
   },

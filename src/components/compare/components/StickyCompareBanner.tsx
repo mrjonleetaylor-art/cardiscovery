@@ -13,6 +13,8 @@ export function StickyCompareBanner({
   onRemoveA,
   onChangeB,
   onRemoveB,
+  heroUrl1,
+  heroUrl2,
 }: {
   v1: StructuredVehicle;
   v2: StructuredVehicle | null;
@@ -24,6 +26,8 @@ export function StickyCompareBanner({
   onRemoveA: () => void;
   onChangeB: () => void;
   onRemoveB: () => void;
+  heroUrl1?: string | null;
+  heroUrl2?: string | null;
 }) {
   return (
     <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden mb-6 sticky top-16 z-10 shadow-lg">
@@ -33,7 +37,17 @@ export function StickyCompareBanner({
         {/* Car A */}
         <div className="p-3 sm:p-4">
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 flex gap-3">
+              {(heroUrl1 ?? v1.images[0]) && (
+                <div className="flex-shrink-0 w-14 h-10 rounded overflow-hidden bg-slate-100">
+                  <img
+                    src={heroUrl1 ?? v1.images[0]}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                  />
+                </div>
+              )}
               <div className="min-w-0">
                 <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                   {v1.year} {v1.make} {v1.model}
@@ -93,7 +107,17 @@ export function StickyCompareBanner({
             </div>
           ) : (
             <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 flex gap-3">
+                {(heroUrl2 ?? v2.images[0]) && (
+                  <div className="flex-shrink-0 w-14 h-10 rounded overflow-hidden bg-slate-100">
+                    <img
+                      src={heroUrl2 ?? v2.images[0]}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
                 <div className="min-w-0">
                   <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                     {v2.year} {v2.make} {v2.model}

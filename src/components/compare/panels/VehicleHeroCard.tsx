@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { StructuredVehicle } from '../../../types/specs';
 
-export function VehicleHeroCard({ vehicle }: { vehicle: StructuredVehicle }) {
-  const src = vehicle.images[0] ?? null;
+export function VehicleHeroCard({ vehicle, heroUrl }: { vehicle: StructuredVehicle; heroUrl?: string | null }) {
+  const src = heroUrl ?? vehicle.images[0] ?? null;
   const [imgError, setImgError] = useState(false);
   return (
     <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden p-4">

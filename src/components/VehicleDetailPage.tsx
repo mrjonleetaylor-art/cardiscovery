@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
-import { StructuredVehicle, Pack, ResolvedSpecs } from '../types/specs';
+import { StructuredVehicle, Pack } from '../types/specs';
 import { structuredVehicles } from '../data/structuredVehicles';
-import { resolveSpecs } from '../lib/resolveSpecs';
+import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { supabase } from '../lib/supabase';
 
@@ -16,7 +16,10 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
   const [inGarage, setInGarage] = useState(false);
   const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
   const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
-  const [resolvedData, setResolvedData] = useState<ResolvedSpecs | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
+  const [selectedSubvariantId, setSelectedSubvariantId] = useState<string | null>(null);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [resolvedData, setResolvedData] = useState<ResolvedVehicle | null>(null);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['option-packs']));
   const [similarVehicles, setSimilarVehicles] = useState<StructuredVehicle[]>([]);
@@ -27,6 +30,9 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     if (found) {
       setSelectedTrimId(found.trims[0]?.id ?? null);
       setSelectedPackIds([]);
+      setSelectedVariantId(null);
+      setSelectedSubvariantId(null);
+      setHeroIndex(0);
       const bodyType = found.trims[0]?.specs.overview.bodyType;
       setSimilarVehicles(
         structuredVehicles
@@ -38,9 +44,19 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
 
   useEffect(() => {
     if (vehicle) {
-      setResolvedData(resolveSpecs(vehicle, selectedTrimId ?? undefined, selectedPackIds));
+      setResolvedData(resolveConfiguredVehicle(vehicle, {
+        variantId: selectedVariantId,
+        subvariantId: selectedSubvariantId,
+        trimId: selectedTrimId,
+        packIds: selectedPackIds,
+      }));
     }
-  }, [vehicle, selectedTrimId, selectedPackIds]);
+  }, [vehicle, selectedTrimId, selectedPackIds, selectedVariantId, selectedSubvariantId]);
+
+  // Reset heroIndex when the resolved image gallery changes (e.g. variant swap)
+  useEffect(() => {
+    setHeroIndex(0);
+  }, [resolvedData?.resolvedImages.join(',')]);
 
   useEffect(() => {
     setInGarage(isInGarage(vehicleId));
@@ -109,10 +125,10 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <div className="aspect-[16/9] bg-slate-200 rounded-xl overflow-hidden mb-6">
-              {vehicle.images[0] ? (
+            <div className="aspect-[16/9] bg-slate-200 rounded-xl overflow-hidden mb-3">
+              {(resolvedData?.resolvedImages[heroIndex] ?? vehicle.images[0]) ? (
                 <img
-                  src={vehicle.images[0]}
+                  src={resolvedData?.resolvedImages[heroIndex] ?? vehicle.images[0]}
                   alt={`${vehicle.make} ${vehicle.model}`}
                   className="w-full h-full object-cover"
                 />
@@ -122,6 +138,29 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 </div>
               )}
             </div>
+            {(resolvedData?.resolvedImages ?? vehicle.images).length > 1 && (
+              <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
+                {(resolvedData?.resolvedImages ?? vehicle.images).map((src, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setHeroIndex(i)}
+                    className={`flex-shrink-0 w-16 h-11 rounded overflow-hidden border-2 transition-all ${
+                      i === heroIndex ? 'border-slate-900' : 'border-transparent hover:border-slate-300'
+                    }`}
+                  >
+                    <img
+                      src={src}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const btn = (e.target as HTMLImageElement).closest('button') as HTMLElement | null;
+                        if (btn) btn.style.display = 'none';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
 
             <div className="bg-white rounded-xl p-8 mb-6">
               <h2 className="text-xl font-bold text-slate-900 mb-6">Overview</h2>
@@ -347,6 +386,74 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 </h1>
                 {resolvedData && (
                   <p className="text-slate-600 mb-4">{resolvedData.selectedTrim.name}</p>
+                )}
+
+                {vehicle.variants && vehicle.variants.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">
+                      Configuration
+                    </label>
+                    <div className="space-y-2">
+                      {vehicle.variants.map((variant) => (
+                        <button
+                          key={variant.id}
+                          onClick={() => {
+                            setSelectedVariantId(variant.id === selectedVariantId ? null : variant.id);
+                            setHeroIndex(0);
+                          }}
+                          className={`w-full text-left px-4 py-3 border-2 rounded-lg transition-all ${
+                            selectedVariantId === variant.id
+                              ? 'border-slate-900 bg-slate-50'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-sm">{variant.name}</span>
+                            <span className="text-sm text-slate-600">
+                              {variant.priceDelta && variant.priceDelta > 0 ? `+$${variant.priceDelta.toLocaleString()}` : 'Base'}
+                            </span>
+                          </div>
+                          {variant.description && (
+                            <p className="text-xs text-slate-500 mt-0.5">{variant.description}</p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {vehicle.subvariants && vehicle.subvariants.length > 0 && (
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold text-slate-900 mb-2">
+                      Body Style
+                    </label>
+                    <div className="space-y-2">
+                      {vehicle.subvariants.map((sub) => (
+                        <button
+                          key={sub.id}
+                          onClick={() => {
+                            setSelectedSubvariantId(sub.id === selectedSubvariantId ? null : sub.id);
+                            setHeroIndex(0);
+                          }}
+                          className={`w-full text-left px-4 py-3 border-2 rounded-lg transition-all ${
+                            selectedSubvariantId === sub.id
+                              ? 'border-slate-900 bg-slate-50'
+                              : 'border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-sm">{sub.name}</span>
+                            <span className="text-sm text-slate-600">
+                              {sub.priceDelta && sub.priceDelta > 0 ? `+$${sub.priceDelta.toLocaleString()}` : 'Base'}
+                            </span>
+                          </div>
+                          {sub.description && (
+                            <p className="text-xs text-slate-500 mt-0.5">{sub.description}</p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {vehicle.trims.length > 1 && (
