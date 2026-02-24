@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { StructuredVehicle, Pack } from '../../types/specs';
+import { StructuredVehicle } from '../../types/specs';
 import { structuredVehicles } from '../../data/structuredVehicles';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../../lib/resolveConfiguredVehicle';
-import { addToGarage, removeFromGarage, isInGarage } from '../../lib/session';
+import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../../lib/session';
 import { Filters } from './types';
 import { getDisplayProps } from './utils/display';
+import { VehicleConfigSelection } from '../../types/config';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../../lib/advancedFilters';
 import { DiscoveryPanel } from './panels/DiscoveryPanel';
 import { CarAExplorePanel } from './panels/CarAExplorePanel';
@@ -13,13 +14,47 @@ import { StickyCompareBanner } from './components/StickyCompareBanner';
 import { ComparisonSection } from './sections/ComparisonSection';
 import { ComparisonRow } from './sections/ComparisonRow';
 import { TABLE_GRID, TABLE_CELL_PAD } from './sections/tableLayout';
+import { VehicleConfigurationControls } from '../config/VehicleConfigurationControls';
+
+function createEmptySelection(): VehicleConfigSelection {
+  return {
+    variantId: null,
+    subvariantId: null,
+    trimId: null,
+    packIds: [],
+  };
+}
+
+function createSelectionForVehicle(vehicle: StructuredVehicle | null): VehicleConfigSelection {
+  if (!vehicle) return createEmptySelection();
+  return {
+    variantId: null,
+    subvariantId: null,
+    trimId: vehicle.trims[0]?.id ?? null,
+    packIds: [],
+  };
+}
+
+function sanitizeSelection(vehicle: StructuredVehicle, selection: VehicleConfigSelection): VehicleConfigSelection {
+  const trim = vehicle.trims.find((t) => t.id === selection.trimId) ?? vehicle.trims[0];
+  const validPackIds = new Set(trim?.packs.map((p) => p.id) ?? []);
+  const validVariantIds = new Set(vehicle.variants?.map((v) => v.id) ?? []);
+  const validSubvariantIds = new Set(vehicle.subvariants?.map((s) => s.id) ?? []);
+
+  return {
+    variantId: selection.variantId && validVariantIds.has(selection.variantId) ? selection.variantId : null,
+    subvariantId: selection.subvariantId && validSubvariantIds.has(selection.subvariantId) ? selection.subvariantId : null,
+    trimId: trim?.id ?? null,
+    packIds: (selection.packIds ?? []).filter((id) => validPackIds.has(id)),
+  };
+}
 
 export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?: string | null }) {
   const [vehicles, setVehicles] = useState<[StructuredVehicle | null, StructuredVehicle | null]>([null, null]);
-  const [selectedTrims, setSelectedTrims] = useState<[string | null, string | null]>([null, null]);
-  const [selectedPackIds, setSelectedPackIds] = useState<[string[], string[]]>([[], []]);
-  const [selectedVariantIds, setSelectedVariantIds] = useState<[string | null, string | null]>([null, null]);
-  const [selectedSubvariantIds, setSelectedSubvariantIds] = useState<[string | null, string | null]>([null, null]);
+  const [selection, setSelection] = useState<[VehicleConfigSelection, VehicleConfigSelection]>([
+    createEmptySelection(),
+    createEmptySelection(),
+  ]);
   const [resolvedSpecs, setResolvedSpecsState] = useState<[ResolvedVehicle | null, ResolvedVehicle | null]>([null, null]);
   const [inGarage, setInGarage] = useState<[boolean, boolean]>([false, false]);
   const [heroIndexA, setHeroIndexA] = useState(0);
@@ -40,18 +75,13 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
   // Resolve specs for Car A
   useEffect(() => {
     if (vehicles[0]) {
-      const specs = resolveConfiguredVehicle(vehicles[0], {
-        variantId: selectedVariantIds[0],
-        subvariantId: selectedSubvariantIds[0],
-        trimId: selectedTrims[0],
-        packIds: selectedPackIds[0],
-      });
+      const specs = resolveConfiguredVehicle(vehicles[0], selection[0]);
       setResolvedSpecsState(prev => [specs, prev[1]]);
       setInGarage(prev => [isInGarage(vehicles[0]!.id), prev[1]]);
     } else {
       setResolvedSpecsState(prev => [null, prev[1]]);
     }
-  }, [vehicles[0], selectedTrims[0], selectedPackIds[0], selectedVariantIds[0], selectedSubvariantIds[0]]);
+  }, [vehicles, selection]);
 
   // Reset hero image index when Car A changes
   useEffect(() => { setHeroIndexA(0); }, [vehicles[0]]);
@@ -66,18 +96,13 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
   // Resolve specs for Car B
   useEffect(() => {
     if (vehicles[1]) {
-      const specs = resolveConfiguredVehicle(vehicles[1], {
-        variantId: selectedVariantIds[1],
-        subvariantId: selectedSubvariantIds[1],
-        trimId: selectedTrims[1],
-        packIds: selectedPackIds[1],
-      });
+      const specs = resolveConfiguredVehicle(vehicles[1], selection[1]);
       setResolvedSpecsState(prev => [prev[0], specs]);
       setInGarage(prev => [prev[0], isInGarage(vehicles[1]!.id)]);
     } else {
       setResolvedSpecsState(prev => [prev[0], null]);
     }
-  }, [vehicles[1], selectedTrims[1], selectedPackIds[1], selectedVariantIds[1], selectedSubvariantIds[1]]);
+  }, [vehicles, selection]);
 
   const makes = Array.from(new Set(structuredVehicles.map(v => v.make))).sort();
 
@@ -93,18 +118,23 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
   const bodyTypesB = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).bodyType).filter(Boolean))).sort();
   const fuelTypesB = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).fuelType).filter(Boolean))).sort();
 
+  const selectionMatchesSaved: [boolean, boolean] = [
+    inGarage[0] && !!vehicles[0] && doesSavedSelectionMatch(vehicles[0].id, selection[0]),
+    inGarage[1] && !!vehicles[1] && doesSavedSelectionMatch(vehicles[1].id, selection[1]),
+  ];
+
   const toggleGarage = (index: 0 | 1) => {
     const vehicle = vehicles[index];
     if (!vehicle) return;
-    if (isInGarage(vehicle.id)) {
-      removeFromGarage(vehicle.id);
+    if (inGarage[index] && selectionMatchesSaved[index]) {
+      removeGarageItem(vehicle.id);
       setInGarage(prev => {
         const updated = [...prev] as [boolean, boolean];
         updated[index] = false;
         return updated;
       });
     } else {
-      addToGarage(vehicle.id);
+      upsertGarageItem(vehicle.id, selection[index]);
       setInGarage(prev => {
         const updated = [...prev] as [boolean, boolean];
         updated[index] = true;
@@ -118,45 +148,36 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const togglePack = (index: 0 | 1, packId: string) => {
-    setSelectedPackIds(prev => {
-      const newPackIds = [...prev] as [string[], string[]];
-      newPackIds[index] = newPackIds[index].includes(packId)
-        ? newPackIds[index].filter(id => id !== packId)
-        : [...newPackIds[index], packId];
-      return newPackIds;
+  const updateSelection = (index: 0 | 1, patch: Partial<VehicleConfigSelection>) => {
+    setSelection(prev => {
+      const next = [...prev] as [VehicleConfigSelection, VehicleConfigSelection];
+      const vehicle = vehicles[index];
+      const patched: VehicleConfigSelection = {
+        ...next[index],
+        ...patch,
+      };
+      next[index] = vehicle ? sanitizeSelection(vehicle, patched) : patched;
+      return next;
     });
   };
 
   const selectCarA = (vehicle: StructuredVehicle | null) => {
     if (vehicle === null) {
       setVehicles([null, null]);
-      setSelectedTrims([null, null]);
-      setSelectedPackIds([[], []]);
-      setSelectedVariantIds([null, null]);
-      setSelectedSubvariantIds([null, null]);
+      setSelection([createEmptySelection(), createEmptySelection()]);
     } else {
       setVehicles([vehicle, null]);
-      setSelectedTrims([vehicle.trims[0]?.id ?? null, null]);
-      setSelectedPackIds([[], []]);
-      setSelectedVariantIds([null, null]);
-      setSelectedSubvariantIds([null, null]);
+      setSelection([createSelectionForVehicle(vehicle), createEmptySelection()]);
     }
   };
 
   const selectCarB = (vehicle: StructuredVehicle | null) => {
     if (vehicle === null) {
-      setVehicles([vehicles[0], null]);
-      setSelectedTrims([selectedTrims[0], null]);
-      setSelectedPackIds([selectedPackIds[0], []]);
-      setSelectedVariantIds([selectedVariantIds[0], null]);
-      setSelectedSubvariantIds([selectedSubvariantIds[0], null]);
+      setVehicles(prev => [prev[0], null]);
+      setSelection(prev => [prev[0], createEmptySelection()]);
     } else {
-      setVehicles([vehicles[0], vehicle]);
-      setSelectedTrims([selectedTrims[0], vehicle.trims[0]?.id ?? null]);
-      setSelectedPackIds([selectedPackIds[0], []]);
-      setSelectedVariantIds([selectedVariantIds[0], null]);
-      setSelectedSubvariantIds([selectedSubvariantIds[0], null]);
+      setVehicles(prev => [prev[0], vehicle]);
+      setSelection(prev => [prev[0], createSelectionForVehicle(vehicle)]);
     }
   };
 
@@ -228,18 +249,12 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
               <CarAExplorePanel
                 vehicle={v1}
                 specs={specs1}
-                selectedTrimId={selectedTrims[0]}
-                setSelectedTrimId={(id) => { setSelectedTrims([id, selectedTrims[1]]); setSelectedPackIds([[], selectedPackIds[1]]); }}
-                selectedPackIds={selectedPackIds[0]}
-                togglePack={(packId) => togglePack(0, packId)}
+                selection={selection[0]}
+                onSelectionChange={(patch) => updateSelection(0, patch)}
                 heroIndex={heroIndexA}
                 setHeroIndex={setHeroIndexA}
                 lightboxOpen={lightboxOpen}
                 setLightboxOpen={setLightboxOpen}
-                selectedVariantId={selectedVariantIds[0]}
-                setSelectedVariantId={(id) => setSelectedVariantIds([id, selectedVariantIds[1]])}
-                selectedSubvariantId={selectedSubvariantIds[0]}
-                setSelectedSubvariantId={(id) => setSelectedSubvariantIds([id, selectedSubvariantIds[1]])}
               />
             ) : (
               <VehicleHeroCard vehicle={v1} heroUrl={specs1?.heroImageUrl} />
@@ -274,6 +289,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
             specs1={specs1}
             specs2={specs2}
             inGarage={inGarage}
+            selectionMatchesSaved={selectionMatchesSaved}
             onToggleGarage={toggleGarage}
             onChangeA={() => selectCarA(null)}
             onRemoveA={() => selectCarA(null)}
@@ -298,107 +314,15 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
                 <div className={TABLE_CELL_PAD} />
                 {/* Car A trims + packs */}
                 <div className={TABLE_CELL_PAD}>
-                  {v1.variants && v1.variants.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      <h4 className="font-semibold text-sm text-slate-700 mb-2">Configuration</h4>
-                      {v1.variants.map((variant) => (
-                        <button
-                          key={variant.id}
-                          onClick={() => setSelectedVariantIds([
-                            variant.id === selectedVariantIds[0] ? null : variant.id,
-                            selectedVariantIds[1],
-                          ])}
-                          className={`w-full text-left p-3 rounded-lg border transition-all ${
-                            selectedVariantIds[0] === variant.id
-                              ? 'border-slate-900 bg-slate-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-sm">{variant.name}</span>
-                            <span className="text-sm">{variant.priceDelta && variant.priceDelta > 0 ? `+$${variant.priceDelta.toLocaleString()}` : 'Base'}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {v1.subvariants && v1.subvariants.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      <h4 className="font-semibold text-sm text-slate-700 mb-2">Body Style</h4>
-                      {v1.subvariants.map((sub) => (
-                        <button
-                          key={sub.id}
-                          onClick={() => setSelectedSubvariantIds([
-                            sub.id === selectedSubvariantIds[0] ? null : sub.id,
-                            selectedSubvariantIds[1],
-                          ])}
-                          className={`w-full text-left p-3 rounded-lg border transition-all ${
-                            selectedSubvariantIds[0] === sub.id
-                              ? 'border-slate-900 bg-slate-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-sm">{sub.name}</span>
-                            <span className="text-sm">{sub.priceDelta && sub.priceDelta > 0 ? `+$${sub.priceDelta.toLocaleString()}` : 'Base'}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {v1.trims.length > 1 && (
-                    <div className="space-y-2 mb-4">
-                      <h4 className="font-semibold text-sm text-slate-700 mb-2">Select Trim</h4>
-                      {v1.trims.map((trim) => {
-                        const delta = trim.basePrice - v1.trims[0].basePrice;
-                        return (
-                          <button
-                            key={trim.id}
-                            onClick={() => { setSelectedTrims([trim.id, selectedTrims[1]]); setSelectedPackIds([[], selectedPackIds[1]]); }}
-                            className={`w-full text-left p-3 rounded-lg border transition-all ${
-                              selectedTrims[0] === trim.id
-                                ? 'border-slate-900 bg-slate-50'
-                                : 'border-slate-200 hover:border-slate-300'
-                            }`}
-                          >
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium">{trim.name}</span>
-                              <span className="text-sm">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {specs1 && specs1.selectedTrim.packs.length > 0 && (
-                    <div className="space-y-3">
-                      <h4 className="font-semibold text-sm text-slate-700">Option Packs</h4>
-                      {specs1.selectedTrim.packs.map((pack: Pack) => (
-                        <button
-                          key={pack.id}
-                          onClick={() => togglePack(0, pack.id)}
-                          className={`w-full text-left p-3 rounded-lg border transition-all ${
-                            selectedPackIds[0].includes(pack.id)
-                              ? 'border-slate-900 bg-slate-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="font-medium">{pack.name}</span>
-                            <span className="text-sm font-bold">+${pack.priceDelta.toLocaleString()}</span>
-                          </div>
-                          {pack.features.length > 0 && (
-                            <div className="text-xs text-slate-600">
-                              {pack.features.slice(0, 3).map((f, idx) => (
-                                <span key={idx}>• {f} </span>
-                              ))}
-                              {pack.features.length > 3 && <span className="italic">+{pack.features.length - 3} more</span>}
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <VehicleConfigurationControls
+                    vehicle={v1}
+                    selection={selection[0]}
+                    onChange={(patch) => updateSelection(0, patch)}
+                    onHeroReset={() => setHeroIndexA(0)}
+                    mode="panel"
+                    showPacks={true}
+                    showDescriptions={false}
+                  />
                 </div>
 
                 {/* Car B trims + packs (or placeholder) */}
@@ -408,109 +332,14 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
                       <p className="text-sm text-slate-400">Add Car B to configure</p>
                     </div>
                   ) : (
-                    <>
-                      {v2.variants && v2.variants.length > 0 && (
-                        <div className="space-y-2 mb-4">
-                          <h4 className="font-semibold text-sm text-slate-700 mb-2">Configuration</h4>
-                          {v2.variants.map((variant) => (
-                            <button
-                              key={variant.id}
-                              onClick={() => setSelectedVariantIds([
-                                selectedVariantIds[0],
-                                variant.id === selectedVariantIds[1] ? null : variant.id,
-                              ])}
-                              className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                selectedVariantIds[1] === variant.id
-                                  ? 'border-slate-900 bg-slate-50'
-                                  : 'border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-sm">{variant.name}</span>
-                                <span className="text-sm">{variant.priceDelta && variant.priceDelta > 0 ? `+$${variant.priceDelta.toLocaleString()}` : 'Base'}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {v2.subvariants && v2.subvariants.length > 0 && (
-                        <div className="space-y-2 mb-4">
-                          <h4 className="font-semibold text-sm text-slate-700 mb-2">Body Style</h4>
-                          {v2.subvariants.map((sub) => (
-                            <button
-                              key={sub.id}
-                              onClick={() => setSelectedSubvariantIds([
-                                selectedSubvariantIds[0],
-                                sub.id === selectedSubvariantIds[1] ? null : sub.id,
-                              ])}
-                              className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                selectedSubvariantIds[1] === sub.id
-                                  ? 'border-slate-900 bg-slate-50'
-                                  : 'border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="font-medium text-sm">{sub.name}</span>
-                                <span className="text-sm">{sub.priceDelta && sub.priceDelta > 0 ? `+$${sub.priceDelta.toLocaleString()}` : 'Base'}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {v2.trims.length > 1 && (
-                        <div className="space-y-2 mb-4">
-                          <h4 className="font-semibold text-sm text-slate-700 mb-2">Select Trim</h4>
-                          {v2.trims.map((trim) => {
-                            const delta = trim.basePrice - v2.trims[0].basePrice;
-                            return (
-                              <button
-                                key={trim.id}
-                                onClick={() => { setSelectedTrims([selectedTrims[0], trim.id]); setSelectedPackIds([selectedPackIds[0], []]); }}
-                                className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                  selectedTrims[1] === trim.id
-                                    ? 'border-slate-900 bg-slate-50'
-                                    : 'border-slate-200 hover:border-slate-300'
-                                }`}
-                              >
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium">{trim.name}</span>
-                                  <span className="text-sm">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {specs2 && specs2.selectedTrim.packs.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm text-slate-700">Option Packs</h4>
-                          {specs2.selectedTrim.packs.map((pack: Pack) => (
-                            <button
-                              key={pack.id}
-                              onClick={() => togglePack(1, pack.id)}
-                              className={`w-full text-left p-3 rounded-lg border transition-all ${
-                                selectedPackIds[1].includes(pack.id)
-                                  ? 'border-slate-900 bg-slate-50'
-                                  : 'border-slate-200 hover:border-slate-300'
-                              }`}
-                            >
-                              <div className="flex justify-between items-center mb-1">
-                                <span className="font-medium">{pack.name}</span>
-                                <span className="text-sm font-bold">+${pack.priceDelta.toLocaleString()}</span>
-                              </div>
-                              {pack.features.length > 0 && (
-                                <div className="text-xs text-slate-600">
-                                  {pack.features.slice(0, 3).map((f, idx) => (
-                                    <span key={idx}>• {f} </span>
-                                  ))}
-                                  {pack.features.length > 3 && <span className="italic">+{pack.features.length - 3} more</span>}
-                                </div>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
+                    <VehicleConfigurationControls
+                      vehicle={v2}
+                      selection={selection[1]}
+                      onChange={(patch) => updateSelection(1, patch)}
+                      mode="panel"
+                      showPacks={true}
+                      showDescriptions={false}
+                    />
                   )}
                 </div>
               </div>

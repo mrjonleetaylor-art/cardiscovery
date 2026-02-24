@@ -3,12 +3,15 @@ import { Trash2, GitCompare, HelpCircle } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { UserPreferences } from '../types';
 import { structuredVehicles } from '../data/structuredVehicles';
-import { getGarageItems, removeFromGarage } from '../lib/session';
+import { GarageItem, getGarageItems, removeGarageItem } from '../lib/session';
+import { resolveConfiguredVehicle } from '../lib/resolveConfiguredVehicle';
+import { buildConfigSummary } from '../lib/configSummary';
 import { supabase } from '../lib/supabase';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 
 export default function GaragePage() {
   const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
+  const [garageItemsList, setGarageItemsList] = useState<GarageItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showQuestions, setShowQuestions] = useState(false);
   const [preferences, setPreferences] = useState<Partial<UserPreferences>>({
@@ -25,8 +28,9 @@ export default function GaragePage() {
   }, []);
 
   const loadGarageVehicles = () => {
-    const garageIds = getGarageItems();
-    setVehicles(structuredVehicles.filter(v => garageIds.includes(v.id)));
+    const items = getGarageItems();
+    setGarageItemsList(items);
+    setVehicles(structuredVehicles.filter(v => items.some(i => i.vehicleId === v.id)));
   };
 
   const loadPreferences = () => {
@@ -52,7 +56,8 @@ export default function GaragePage() {
   };
 
   const handleRemove = (vehicleId: string) => {
-    removeFromGarage(vehicleId);
+    removeGarageItem(vehicleId);
+    setGarageItemsList(prev => prev.filter(item => item.vehicleId !== vehicleId));
     setVehicles(prev => prev.filter(v => v.id !== vehicleId));
     setSelectedIds(prev => prev.filter(id => id !== vehicleId));
     window.dispatchEvent(new Event('garage-updated'));
@@ -245,8 +250,11 @@ export default function GaragePage() {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicles.map((vehicle) => {
-            const basePrice = vehicle.trims[0]?.basePrice ?? 0;
-            const imageUrl = vehicle.images[0] ?? '';
+            const garageItem = garageItemsList.find(i => i.vehicleId === vehicle.id);
+            const itemSelection = garageItem?.selection ?? { variantId: null, subvariantId: null, trimId: null, packIds: [] };
+            const resolved = resolveConfiguredVehicle(vehicle, itemSelection);
+            const heroUrl = resolved.heroImageUrl ?? resolved.resolvedImages[0] ?? vehicle.images[0] ?? null;
+            const configSummary = buildConfigSummary(vehicle, itemSelection);
             const isSelected = selectedIds.includes(vehicle.id);
 
             return (
@@ -258,11 +266,12 @@ export default function GaragePage() {
                 onClick={() => toggleSelect(vehicle.id)}
               >
                 <div className="aspect-[16/9] bg-slate-100 relative">
-                  {imageUrl ? (
+                  {heroUrl ? (
                     <img
-                      src={imageUrl}
+                      src={heroUrl}
                       alt={`${vehicle.make} ${vehicle.model}`}
                       className="w-full h-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -282,6 +291,9 @@ export default function GaragePage() {
                   <h3 className="text-xl font-bold text-slate-900 mb-1">
                     {vehicle.year} {vehicle.make} {vehicle.model}
                   </h3>
+                  {configSummary && (
+                    <p className="text-xs text-slate-500 mb-2 truncate">{configSummary}</p>
+                  )}
 
                   {vehicle.aiSummary && (
                     <p className="text-sm text-slate-600 mb-3 line-clamp-2">{vehicle.aiSummary}</p>
@@ -289,7 +301,7 @@ export default function GaragePage() {
 
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xl font-bold text-slate-900">
-                      ${basePrice.toLocaleString()}
+                      ${resolved.totalPrice.toLocaleString()}
                     </p>
                   </div>
 

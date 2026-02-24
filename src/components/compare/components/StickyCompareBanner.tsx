@@ -8,6 +8,7 @@ export function StickyCompareBanner({
   specs1,
   specs2,
   inGarage,
+  selectionMatchesSaved,
   onToggleGarage,
   onChangeA,
   onRemoveA,
@@ -21,6 +22,7 @@ export function StickyCompareBanner({
   specs1: ResolvedSpecs | null;
   specs2: ResolvedSpecs | null;
   inGarage: [boolean, boolean];
+  selectionMatchesSaved: [boolean, boolean];
   onToggleGarage: (index: 0 | 1) => void;
   onChangeA: () => void;
   onRemoveA: () => void;
@@ -70,7 +72,7 @@ export function StickyCompareBanner({
                 }`}
               >
                 <Heart className={`w-3 h-3 ${inGarage[0] ? 'fill-red-500' : ''}`} />
-                {inGarage[0] ? 'Saved' : 'Save'}
+                {!inGarage[0] ? 'Save' : selectionMatchesSaved[0] ? 'Saved' : 'Update'}
               </button>
               <button
                 onClick={() => onToggleGarage(0)}
@@ -140,7 +142,7 @@ export function StickyCompareBanner({
                   }`}
                 >
                   <Heart className={`w-3 h-3 ${inGarage[1] ? 'fill-red-500' : ''}`} />
-                  {inGarage[1] ? 'Saved' : 'Save'}
+                  {!inGarage[1] ? 'Save' : selectionMatchesSaved[1] ? 'Saved' : 'Update'}
                 </button>
                 <button
                   onClick={() => onToggleGarage(1)}

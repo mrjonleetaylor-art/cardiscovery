@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
 import { StructuredVehicle, Pack } from '../types/specs';
+import { VehicleConfigSelection } from '../types/config';
 import { structuredVehicles } from '../data/structuredVehicles';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
-import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
+import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
 import { supabase } from '../lib/supabase';
+import { VehicleConfigurationControls } from './config/VehicleConfigurationControls';
 
 interface VehicleDetailPageProps {
   vehicleId: string;
@@ -14,12 +16,15 @@ interface VehicleDetailPageProps {
 export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPageProps) {
   const [vehicle, setVehicle] = useState<StructuredVehicle | null>(null);
   const [inGarage, setInGarage] = useState(false);
-  const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
-  const [selectedPackIds, setSelectedPackIds] = useState<string[]>([]);
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
-  const [selectedSubvariantId, setSelectedSubvariantId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<VehicleConfigSelection>({
+    variantId: null,
+    subvariantId: null,
+    trimId: null,
+    packIds: [],
+  });
   const [heroIndex, setHeroIndex] = useState(0);
   const [resolvedData, setResolvedData] = useState<ResolvedVehicle | null>(null);
+  const [heroError, setHeroError] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['option-packs']));
   const [similarVehicles, setSimilarVehicles] = useState<StructuredVehicle[]>([]);
@@ -28,10 +33,12 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     const found = structuredVehicles.find(v => v.id === vehicleId) ?? null;
     setVehicle(found);
     if (found) {
-      setSelectedTrimId(found.trims[0]?.id ?? null);
-      setSelectedPackIds([]);
-      setSelectedVariantId(null);
-      setSelectedSubvariantId(null);
+      setSelection({
+        variantId: null,
+        subvariantId: null,
+        trimId: found.trims[0]?.id ?? null,
+        packIds: [],
+      });
       setHeroIndex(0);
       const bodyType = found.trims[0]?.specs.overview.bodyType;
       setSimilarVehicles(
@@ -44,31 +51,41 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
 
   useEffect(() => {
     if (vehicle) {
-      setResolvedData(resolveConfiguredVehicle(vehicle, {
-        variantId: selectedVariantId,
-        subvariantId: selectedSubvariantId,
-        trimId: selectedTrimId,
-        packIds: selectedPackIds,
-      }));
+      setResolvedData(resolveConfiguredVehicle(vehicle, selection));
     }
-  }, [vehicle, selectedTrimId, selectedPackIds, selectedVariantId, selectedSubvariantId]);
+  }, [vehicle, selection]);
 
   // Reset heroIndex when the resolved image gallery changes (e.g. variant swap)
   useEffect(() => {
     setHeroIndex(0);
   }, [resolvedData?.resolvedImages.join(',')]);
 
+  const heroSrc = resolvedData?.heroImageUrl
+    ?? resolvedData?.resolvedImages[heroIndex]
+    ?? vehicle?.images[heroIndex]
+    ?? vehicle?.images[0]
+    ?? null;
+
   useEffect(() => {
-    setInGarage(isInGarage(vehicleId));
+    setHeroError(false);
+  }, [heroSrc]);
+
+  useEffect(() => {
+    const refresh = () => setInGarage(isInGarage(vehicleId));
+    refresh();
+    window.addEventListener('garage-updated', refresh);
+    return () => window.removeEventListener('garage-updated', refresh);
   }, [vehicleId]);
 
-  const toggleGarage = () => {
-    if (inGarage) {
-      removeFromGarage(vehicleId);
+  const selectionMatchesSaved = inGarage && doesSavedSelectionMatch(vehicleId, selection);
+
+  const handleGarageAction = () => {
+    if (inGarage && selectionMatchesSaved) {
+      removeGarageItem(vehicleId);
     } else {
-      addToGarage(vehicleId);
+      upsertGarageItem(vehicleId, selection);
     }
-    setInGarage(!inGarage);
+    setInGarage(isInGarage(vehicleId));
     window.dispatchEvent(new Event('garage-updated'));
   };
 
@@ -87,9 +104,12 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
   };
 
   const togglePack = (packId: string) => {
-    setSelectedPackIds(prev =>
-      prev.includes(packId) ? prev.filter(p => p !== packId) : [...prev, packId]
-    );
+    setSelection((prev) => ({
+      ...prev,
+      packIds: prev.packIds.includes(packId)
+        ? prev.packIds.filter((p) => p !== packId)
+        : [...prev.packIds, packId],
+    }));
   };
 
   if (!vehicle) {
@@ -126,11 +146,12 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
             <div className="aspect-[16/9] bg-slate-200 rounded-xl overflow-hidden mb-3">
-              {(resolvedData?.resolvedImages[heroIndex] ?? vehicle.images[0]) ? (
+              {heroSrc && !heroError ? (
                 <img
-                  src={resolvedData?.resolvedImages[heroIndex] ?? vehicle.images[0]}
+                  src={heroSrc}
                   alt={`${vehicle.make} ${vehicle.model}`}
                   className="w-full h-full object-cover"
+                  onError={() => setHeroError(true)}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -192,7 +213,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
               {currentTrimPacks.length > 0 ? (
                 <div className="space-y-4">
                   {currentTrimPacks.map((pack: Pack) => {
-                    const isSelected = selectedPackIds.includes(pack.id);
+                    const isSelected = selection.packIds.includes(pack.id);
                     return (
                       <div
                         key={pack.id}
@@ -388,105 +409,24 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                   <p className="text-slate-600 mb-4">{resolvedData.selectedTrim.name}</p>
                 )}
 
-                {vehicle.variants && vehicle.variants.length > 0 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-900 mb-2">
-                      Configuration
-                    </label>
-                    <div className="space-y-2">
-                      {vehicle.variants.map((variant) => (
-                        <button
-                          key={variant.id}
-                          onClick={() => {
-                            setSelectedVariantId(variant.id === selectedVariantId ? null : variant.id);
-                            setHeroIndex(0);
-                          }}
-                          className={`w-full text-left px-4 py-3 border-2 rounded-lg transition-all ${
-                            selectedVariantId === variant.id
-                              ? 'border-slate-900 bg-slate-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-sm">{variant.name}</span>
-                            <span className="text-sm text-slate-600">
-                              {variant.priceDelta && variant.priceDelta > 0 ? `+$${variant.priceDelta.toLocaleString()}` : 'Base'}
-                            </span>
-                          </div>
-                          {variant.description && (
-                            <p className="text-xs text-slate-500 mt-0.5">{variant.description}</p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {vehicle.subvariants && vehicle.subvariants.length > 0 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-900 mb-2">
-                      Body Style
-                    </label>
-                    <div className="space-y-2">
-                      {vehicle.subvariants.map((sub) => (
-                        <button
-                          key={sub.id}
-                          onClick={() => {
-                            setSelectedSubvariantId(sub.id === selectedSubvariantId ? null : sub.id);
-                            setHeroIndex(0);
-                          }}
-                          className={`w-full text-left px-4 py-3 border-2 rounded-lg transition-all ${
-                            selectedSubvariantId === sub.id
-                              ? 'border-slate-900 bg-slate-50'
-                              : 'border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-sm">{sub.name}</span>
-                            <span className="text-sm text-slate-600">
-                              {sub.priceDelta && sub.priceDelta > 0 ? `+$${sub.priceDelta.toLocaleString()}` : 'Base'}
-                            </span>
-                          </div>
-                          {sub.description && (
-                            <p className="text-xs text-slate-500 mt-0.5">{sub.description}</p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {vehicle.trims.length > 1 && (
-                  <div className="mb-6">
-                    <label className="block text-sm font-semibold text-slate-900 mb-2">
-                      Select Trim
-                    </label>
-                    <select
-                      value={selectedTrimId || vehicle.trims[0].id}
-                      onChange={(e) => {
-                        setSelectedTrimId(e.target.value);
-                        setSelectedPackIds([]);
-                      }}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-                    >
-                      {vehicle.trims.map((trim) => {
-                        const delta = trim.basePrice - vehicle.trims[0].basePrice;
-                        return (
-                          <option key={trim.id} value={trim.id}>
-                            {trim.name}{delta > 0 ? ` (+$${delta.toLocaleString()})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                )}
+                <div className="mb-6">
+                  <VehicleConfigurationControls
+                    vehicle={vehicle}
+                    selection={selection}
+                    onChange={(selectionPatch) => setSelection((prev) => ({ ...prev, ...selectionPatch }))}
+                    onHeroReset={() => setHeroIndex(0)}
+                    mode="sidebar"
+                    showPacks={false}
+                    showDescriptions={true}
+                  />
+                </div>
 
                 <div className="mb-6">
                   <div className="text-sm text-slate-600 mb-1">Price Range</div>
                   <div className="text-3xl font-bold text-slate-900">{priceRange}</div>
-                  {selectedPackIds.length > 0 && resolvedData && (
+                  {selection.packIds.length > 0 && resolvedData && (
                     <div className="text-sm text-slate-600 mt-1">
-                      With {selectedPackIds.length} pack{selectedPackIds.length > 1 ? 's' : ''}: ${resolvedData.totalPrice.toLocaleString()}
+                      With {selection.packIds.length} pack{selection.packIds.length > 1 ? 's' : ''}: ${resolvedData.totalPrice.toLocaleString()}
                     </div>
                   )}
                 </div>
@@ -503,15 +443,15 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
 
                 <div className="space-y-3">
                   <button
-                    onClick={toggleGarage}
+                    onClick={handleGarageAction}
                     className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-colors ${
                       inGarage
                         ? 'bg-slate-900 text-white hover:bg-slate-800'
                         : 'bg-slate-100 text-slate-900 hover:bg-slate-200'
                     }`}
                   >
-                    {inGarage ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {inGarage ? 'Remove from Garage' : 'Add to Garage'}
+                    {inGarage && selectionMatchesSaved ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {!inGarage ? 'Save' : selectionMatchesSaved ? 'Saved' : 'Update Garage'}
                   </button>
 
                   <button
