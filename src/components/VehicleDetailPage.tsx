@@ -57,12 +57,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
   };
 
   const handleAddToCompare = () => {
-    const compareList = JSON.parse(localStorage.getItem('compare_list') || '[]');
-    if (!compareList.includes(vehicleId) && compareList.length < 2) {
-      compareList.push(vehicleId);
-      localStorage.setItem('compare_list', JSON.stringify(compareList));
-      window.dispatchEvent(new Event('compare-updated'));
-    }
+    window.dispatchEvent(new CustomEvent('navigate-compare', { detail: { vehicleId } }));
   };
 
   const toggleSection = (section: string) => {

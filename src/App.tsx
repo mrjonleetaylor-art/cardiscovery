@@ -10,6 +10,7 @@ import { seedDatabase } from './lib/seedDatabase';
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<'discovery' | 'vehicle' | 'compare' | 'garage'>('discovery');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [comparePrefillId, setComparePrefillId] = useState<string | null>(null);
 
   useEffect(() => {
     seedDatabase();
@@ -23,7 +24,9 @@ function AppContent() {
       setCurrentPage('vehicle');
     };
 
-    const handleNavigateCompare = () => {
+    const handleNavigateCompare = (event: Event) => {
+      const vehicleId = (event as CustomEvent).detail?.vehicleId ?? null;
+      setComparePrefillId(vehicleId);
       setCurrentPage('compare');
       setSelectedVehicleId(null);
     };
@@ -52,7 +55,7 @@ function AppContent() {
 
       {currentPage === 'discovery' && <Discovery />}
       {currentPage === 'vehicle' && selectedVehicleId && <VehicleDetailPage vehicleId={selectedVehicleId} onBack={() => setCurrentPage('discovery')} />}
-      {currentPage === 'compare' && <Comparisons />}
+      {currentPage === 'compare' && <Comparisons prefillVehicleId={comparePrefillId} />}
       {currentPage === 'garage' && <GaragePage />}
     </div>
   );

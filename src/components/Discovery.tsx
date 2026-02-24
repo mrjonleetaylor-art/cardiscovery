@@ -3,6 +3,8 @@ import { Search, Plus, Minus, Check } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { structuredVehicles } from '../data/structuredVehicles';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
+import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
+import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
 
 interface Filters {
   search: string;
@@ -37,6 +39,7 @@ export default function Discovery() {
     budgetMin: 0,
     budgetMax: 250000,
   });
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(defaultAdvancedFilters);
 
   useEffect(() => {
     loadGarageState();
@@ -89,8 +92,10 @@ export default function Discovery() {
       return price >= filters.budgetMin && price <= filters.budgetMax;
     });
 
+    filtered = filtered.filter(v => matchesAdvancedFilters(v, advancedFilters));
+
     return filtered;
-  }, [filters]);
+  }, [filters, advancedFilters]);
 
   const toggleGarage = (vehicleId: string) => {
     if (isInGarage(vehicleId)) {
@@ -259,20 +264,31 @@ export default function Discovery() {
             </div>
           </div>
 
+          <div className="mt-3">
+            <AdvancedFiltersPanel
+              value={advancedFilters}
+              onChange={setAdvancedFilters}
+              onClear={() => setAdvancedFilters(defaultAdvancedFilters)}
+            />
+          </div>
+
           <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
             <p className="text-sm text-slate-600">
               {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} found
             </p>
             <button
-              onClick={() => setFilters({
-                search: '',
-                make: '',
-                model: '',
-                bodyType: '',
-                fuelType: '',
-                budgetMin: 0,
-                budgetMax: 250000,
-              })}
+              onClick={() => {
+                setFilters({
+                  search: '',
+                  make: '',
+                  model: '',
+                  bodyType: '',
+                  fuelType: '',
+                  budgetMin: 0,
+                  budgetMax: 250000,
+                });
+                setAdvancedFilters(defaultAdvancedFilters);
+              }}
               className="text-sm text-slate-900 hover:text-slate-700 font-medium"
             >
               Clear Filters
