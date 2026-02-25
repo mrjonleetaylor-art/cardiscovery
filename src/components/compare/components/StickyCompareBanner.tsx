@@ -2,6 +2,18 @@ import { Heart, X } from 'lucide-react';
 import { StructuredVehicle, ResolvedSpecs } from '../../../types/specs';
 import { TABLE_GRID } from '../sections/tableLayout';
 
+function garageLabel(inGarageSlot: boolean, matchesSaved: boolean): string {
+  if (!inGarageSlot) return 'Add to Garage';
+  if (matchesSaved) return 'Remove from Garage';
+  return 'Update Garage';
+}
+
+function garageButtonClass(inGarageSlot: boolean, matchesSaved: boolean): string {
+  if (!inGarageSlot) return 'border-slate-300 text-slate-700 hover:bg-slate-50';
+  if (matchesSaved) return 'border-red-400 text-red-600 hover:bg-red-50';
+  return 'border-slate-700 text-slate-800 hover:bg-slate-100';
+}
+
 export function StickyCompareBanner({
   v1,
   v2,
@@ -65,22 +77,16 @@ export function StickyCompareBanner({
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
                 onClick={() => onToggleGarage(0)}
-                className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${
-                  inGarage[0]
-                    ? 'border-red-400 text-red-600 hover:bg-red-50'
-                    : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                }`}
+                aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
+                className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
               >
                 <Heart className={`w-3 h-3 ${inGarage[0] ? 'fill-red-500' : ''}`} />
-                {!inGarage[0] ? 'Save' : selectionMatchesSaved[0] ? 'Saved' : 'Update'}
+                {garageLabel(inGarage[0], selectionMatchesSaved[0])}
               </button>
               <button
                 onClick={() => onToggleGarage(0)}
-                className={`sm:hidden p-1.5 rounded-lg border transition-all ${
-                  inGarage[0]
-                    ? 'border-red-400 text-red-600 hover:bg-red-50'
-                    : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                }`}
+                aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
+                className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
               >
                 <Heart className={`w-3.5 h-3.5 ${inGarage[0] ? 'fill-red-500' : ''}`} />
               </button>
@@ -135,22 +141,16 @@ export function StickyCompareBanner({
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => onToggleGarage(1)}
-                  className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${
-                    inGarage[1]
-                      ? 'border-red-400 text-red-600 hover:bg-red-50'
-                      : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
+                  className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
                 >
                   <Heart className={`w-3 h-3 ${inGarage[1] ? 'fill-red-500' : ''}`} />
-                  {!inGarage[1] ? 'Save' : selectionMatchesSaved[1] ? 'Saved' : 'Update'}
+                  {garageLabel(inGarage[1], selectionMatchesSaved[1])}
                 </button>
                 <button
                   onClick={() => onToggleGarage(1)}
-                  className={`sm:hidden p-1.5 rounded-lg border transition-all ${
-                    inGarage[1]
-                      ? 'border-red-400 text-red-600 hover:bg-red-50'
-                      : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
+                  className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
                 >
                   <Heart className={`w-3.5 h-3.5 ${inGarage[1] ? 'fill-red-500' : ''}`} />
                 </button>
