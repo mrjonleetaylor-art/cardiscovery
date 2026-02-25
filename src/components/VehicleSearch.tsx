@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Heart, Scale } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Vehicle } from '../types';
-import { useAuth } from './Auth/AuthContext';
 
 interface VehicleSearchProps {
   onCompare: (vehicles: Vehicle[]) => void;
@@ -26,9 +24,7 @@ interface GroupedVehicle {
   trims: Vehicle[];
 }
 
-export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewGarage, onViewVehicle }) => {
-  const { user } = useAuth();
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onViewVehicle }) => {
   const [allVehicles, setAllVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [make, setMake] = useState('');
@@ -38,8 +34,6 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
   const [fuelType, setFuelType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [groupedVehicles, setGroupedVehicles] = useState<GroupedVehicle[]>([]);
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
-  const [garageItems, setGarageItems] = useState<Set<string>>(new Set());
   const [makeModelMap, setMakeModelMap] = useState<MakeModelMap>({});
   const [availableMakes, setAvailableMakes] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -47,10 +41,7 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
 
   useEffect(() => {
     loadAllVehicles();
-    if (user) {
-      loadGarageItems();
-    }
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     filterVehicles();
@@ -173,8 +164,6 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
       });
     }
 
-    setVehicles(filtered);
-
     const grouped = filtered.reduce((acc, vehicle) => {
       const key = `${vehicle.make}-${vehicle.model}`;
       if (!acc[key]) {
@@ -185,7 +174,7 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
           basePrice: vehicle.price || 0,
           maxPrice: vehicle.price || 0,
           trimCount: 0,
-          image_url: vehicle.image_url,
+          image_url: vehicle.image_url ?? null,
           fuel_type: vehicle.fuel_type || '',
           trims: []
         };
@@ -202,59 +191,6 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
     setGroupedVehicles(Object.values(grouped));
   };
 
-  const loadGarageItems = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_garage')
-        .select('vehicle_id')
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-      setGarageItems(new Set((data || []).map(item => item.vehicle_id)));
-    } catch (error) {
-      console.error('Error loading garage items:', error);
-    }
-  };
-
-  const toggleGarage = async (vehicleId: string) => {
-    if (!user) return;
-
-    try {
-      if (garageItems.has(vehicleId)) {
-        await supabase
-          .from('user_garage')
-          .delete()
-          .eq('vehicle_id', vehicleId)
-          .eq('user_id', user.id);
-        setGarageItems(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(vehicleId);
-          return newSet;
-        });
-      } else {
-        await supabase
-          .from('user_garage')
-          .insert([{ user_id: user.id, vehicle_id: vehicleId }]);
-        setGarageItems(prev => new Set([...prev, vehicleId]));
-      }
-    } catch (error) {
-      console.error('Error updating garage:', error);
-    }
-  };
-
-  const handleCompare = () => {
-    const vehiclesToCompare = vehicles.filter(v => selectedVehicles.includes(v.id));
-    onCompare(vehiclesToCompare);
-  };
-
-  const toggleSelect = (vehicleId: string) => {
-    setSelectedVehicles(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
-    );
-  };
-
   const handlePriceMinChange = (value: string) => {
     const numValue = parseInt(value) || 0;
     setPriceMin(Math.min(numValue, priceMax));
@@ -263,13 +199,6 @@ export const VehicleSearch: React.FC<VehicleSearchProps> = ({ onCompare, onViewG
   const handlePriceMaxChange = (value: string) => {
     const numValue = parseInt(value) || 250000;
     setPriceMax(Math.max(numValue, priceMin));
-  };
-
-  const formatPrice = (value: number) => {
-    if (value >= 250000) {
-      return '$250,000+';
-    }
-    return `$${value.toLocaleString()}`;
   };
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Minus, GitCompare, RefreshCw, HelpCircle, ChevronRight } from 'lucide-react';
+import { X, Trash2, GitCompare, RefreshCw, HelpCircle, ChevronRight } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
 import { UserPreferences } from '../types';
@@ -13,7 +13,7 @@ import {
 } from '../lib/session';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { buildConfigSummary } from '../lib/configSummary';
-import { VehicleConfigurationControls } from './config/VehicleConfigurationControls';
+import { VehicleProfileContent } from './profile/VehicleProfileContent';
 import { supabase } from '../lib/supabase';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 
@@ -25,43 +25,74 @@ function GarageProfileFlyout({
   onClose,
   onRemoved,
   onUpdated,
+  returnFocusTo,
 }: {
   vehicle: StructuredVehicle;
   savedItem: GarageItem;
   onClose: () => void;
   onRemoved: (vehicleId: string) => void;
   onUpdated: (vehicleId: string, newSelection: VehicleConfigSelection) => void;
+  returnFocusTo: HTMLElement | null;
 }) {
   const [selection, setSelection] = useState<VehicleConfigSelection>(savedItem.selection);
-  const [heroIndex, setHeroIndex] = useState(0);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = `garage-dialog-title-${vehicle.id}`;
 
   const resolvedData: ResolvedVehicle = useMemo(
     () => resolveConfiguredVehicle(vehicle, selection),
     [vehicle, selection],
   );
 
-  const heroSrc =
-    resolvedData.heroImageUrl ??
-    resolvedData.resolvedImages[heroIndex] ??
-    vehicle.images[0] ??
-    null;
-
   // doesSavedSelectionMatch reads localStorage, which is the source of truth for "saved"
   const isDirty = !doesSavedSelectionMatch(vehicle.id, selection);
 
-  // Auto-focus the close button when flyout opens
-  useEffect(() => { closeRef.current?.focus(); }, []);
-
-  // Esc closes flyout
+  // Auto-focus close button and lock body scroll while modal is open.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    closeRef.current?.focus();
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      returnFocusTo?.focus();
+    };
+  }, [returnFocusTo]);
+
+  // Esc closes modal; Tab/Shift+Tab stays trapped inside modal.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const root = dialogRef.current;
+      if (!root) return;
+      const focusables = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
+      if (focusables.length === 0) {
+        e.preventDefault();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !root.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !root.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-
-  // Reset hero index when the resolved image gallery changes
-  useEffect(() => { setHeroIndex(0); }, [resolvedData.resolvedImages.join(',')]);
 
   const handleUpdate = () => {
     upsertGarageItem(vehicle.id, selection);
@@ -86,28 +117,32 @@ function GarageProfileFlyout({
     window.dispatchEvent(
       new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }),
     );
+    onClose();
   };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={`${vehicle.year} ${vehicle.make} ${vehicle.model} details`}
+      aria-labelledby={titleId}
     >
       {/* Backdrop */}
-      <div className="flex-1 bg-black/40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
 
-      {/* Drawer — slides in from the right */}
-      <div className="w-full max-w-md bg-white shadow-2xl flex flex-col overflow-y-auto">
+      {/* Centered modal */}
+      <div
+        ref={dialogRef}
+        className="relative w-[min(1100px,92vw)] max-h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+      >
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 flex-shrink-0">
           <div className="min-w-0 mr-3">
-            <h2 className="text-base font-bold text-slate-900 truncate">
+            <h2 id={titleId} className="text-sm font-semibold text-slate-900 truncate leading-tight">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </h2>
-            <p className="text-sm text-slate-500 truncate">
+            <p className="text-xs text-slate-500 truncate mt-0.5">
               {resolvedData.selectedTrim.name}
             </p>
           </div>
@@ -115,75 +150,28 @@ function GarageProfileFlyout({
             ref={closeRef}
             onClick={onClose}
             aria-label="Close"
-            className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+            className="flex-shrink-0 p-1 rounded-md border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-1 transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Hero image */}
-        <div className="flex-shrink-0">
-          <div className="aspect-[16/9] bg-slate-100 overflow-hidden">
-            {heroSrc ? (
-              <img
-                src={heroSrc}
-                alt={`${vehicle.make} ${vehicle.model}`}
-                className="w-full h-full object-cover"
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
-                No Image Available
-              </div>
-            )}
-          </div>
-          {resolvedData.resolvedImages.length > 1 && (
-            <div className="flex gap-1.5 px-5 py-2 overflow-x-auto bg-slate-50 border-b border-slate-100">
-              {resolvedData.resolvedImages.map((src, i) => (
-                <button
-                  key={i}
-                  onClick={() => setHeroIndex(i)}
-                  className={`flex-shrink-0 w-12 h-8 rounded overflow-hidden border-2 transition-all ${
-                    i === heroIndex ? 'border-slate-900' : 'border-transparent hover:border-slate-300'
-                  }`}
-                >
-                  <img src={src} alt="" className="w-full h-full object-cover" />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Price */}
-        <div className="px-5 py-4 border-b border-slate-100 flex-shrink-0">
-          <div className="text-xs text-slate-500 mb-0.5">Price</div>
-          <div className="text-2xl font-bold text-slate-900">
-            ${resolvedData.totalPrice.toLocaleString()}
-          </div>
-        </div>
-
-        {/* Configuration controls */}
-        <div className="px-5 py-4 flex-1">
-          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">
-            Trim &amp; Options
-          </p>
-          <VehicleConfigurationControls
+        <div className="overflow-y-auto px-5 py-4 md:px-6">
+          <VehicleProfileContent
             vehicle={vehicle}
             selection={selection}
-            onChange={(patch) => setSelection(prev => ({ ...prev, ...patch }))}
-            onHeroReset={() => setHeroIndex(0)}
-            mode="panel"
-            showPacks={true}
-            showConfigGroups={true}
-            showDescriptions={true}
+            resolvedData={resolvedData}
+            onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}
+            mode="modal"
+            showTrimOptions={true}
           />
         </div>
 
         {/* Actions */}
-        <div className="px-5 py-4 border-t border-slate-200 flex-shrink-0 space-y-2">
+        <div className="px-5 py-4 md:px-6 border-t border-slate-200 bg-white/95 backdrop-blur-sm flex-shrink-0 sticky bottom-0 space-y-2">
           <button
             onClick={handleCompare}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-sm font-medium transition-colors"
+            className="w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-sm font-medium transition-colors"
           >
             <GitCompare className="w-4 h-4" />
             Add to Compare
@@ -192,7 +180,7 @@ function GarageProfileFlyout({
             onClick={handleUpdate}
             disabled={!isDirty}
             aria-disabled={!isDirty}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+            className={`w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border text-sm font-medium transition-colors ${
               isDirty
                 ? 'border-slate-700 text-slate-800 bg-white hover:bg-slate-50'
                 : 'border-slate-200 text-slate-400 bg-white cursor-not-allowed'
@@ -203,14 +191,14 @@ function GarageProfileFlyout({
           </button>
           <button
             onClick={handleRemove}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-medium transition-colors"
+            className="w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-medium transition-colors"
           >
-            <Minus className="w-4 h-4" />
+            <Trash2 className="w-4 h-4" />
             Remove from Garage
           </button>
           <button
             onClick={handleViewProfile}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-slate-500 hover:text-slate-700 text-sm transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors"
           >
             View full profile
             <ChevronRight className="w-3.5 h-3.5" />
@@ -227,6 +215,7 @@ export default function GaragePage() {
   const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
   const [garageItemsList, setGarageItemsList] = useState<GarageItem[]>([]);
   const [flyoutVehicleId, setFlyoutVehicleId] = useState<string | null>(null);
+  const [flyoutTriggerEl, setFlyoutTriggerEl] = useState<HTMLElement | null>(null);
   const [showQuestions, setShowQuestions] = useState(false);
   const [preferences, setPreferences] = useState<Partial<UserPreferences>>({
     monthly_kms: undefined,
@@ -456,7 +445,10 @@ export default function GaragePage() {
               <button
                 key={vehicle.id}
                 type="button"
-                onClick={() => setFlyoutVehicleId(vehicle.id)}
+                onClick={(e) => {
+                  setFlyoutTriggerEl(e.currentTarget);
+                  setFlyoutVehicleId(vehicle.id);
+                }}
                 className="text-left bg-white rounded-lg border border-slate-200 overflow-hidden transition-all hover:border-slate-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
               >
                 <div className="aspect-[16/9] bg-slate-100 relative overflow-hidden">
@@ -502,6 +494,7 @@ export default function GaragePage() {
           onClose={() => setFlyoutVehicleId(null)}
           onRemoved={handleRemove}
           onUpdated={handleUpdated}
+          returnFocusTo={flyoutTriggerEl}
         />
       )}
     </div>

@@ -1,4 +1,4 @@
-import { Heart, X } from 'lucide-react';
+import { Warehouse, X } from 'lucide-react';
 import { StructuredVehicle, ResolvedSpecs } from '../../../types/specs';
 import { TABLE_GRID } from '../sections/tableLayout';
 
@@ -11,7 +11,14 @@ function garageLabel(inGarageSlot: boolean, matchesSaved: boolean): string {
 function garageButtonClass(inGarageSlot: boolean, matchesSaved: boolean): string {
   if (!inGarageSlot) return 'border-slate-300 text-slate-700 hover:bg-slate-50';
   if (matchesSaved) return 'border-red-400 text-red-600 hover:bg-red-50';
-  return 'border-slate-700 text-slate-800 hover:bg-slate-100';
+  return 'border-slate-300 text-slate-700 hover:bg-slate-50';
+}
+
+function garageIconClass(inGarageSlot: boolean, matchesSaved: boolean, size: 'sm' | 'md'): string {
+  const base = size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5';
+  if (!inGarageSlot) return `${base} text-slate-600`;
+  if (matchesSaved) return `${base} text-red-600`;
+  return `${base} text-red-600`;
 }
 
 export function StickyCompareBanner({
@@ -80,7 +87,7 @@ export function StickyCompareBanner({
                 aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
                 className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
               >
-                <Heart className={`w-3 h-3 ${inGarage[0] ? 'fill-red-500' : ''}`} />
+                <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'sm')} />
                 {garageLabel(inGarage[0], selectionMatchesSaved[0])}
               </button>
               <button
@@ -88,7 +95,7 @@ export function StickyCompareBanner({
                 aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
                 className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
               >
-                <Heart className={`w-3.5 h-3.5 ${inGarage[0] ? 'fill-red-500' : ''}`} />
+                <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'md')} />
               </button>
               <button
                 onClick={onChangeA}
@@ -144,7 +151,7 @@ export function StickyCompareBanner({
                   aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
                   className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
                 >
-                  <Heart className={`w-3 h-3 ${inGarage[1] ? 'fill-red-500' : ''}`} />
+                  <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'sm')} />
                   {garageLabel(inGarage[1], selectionMatchesSaved[1])}
                 </button>
                 <button
@@ -152,7 +159,7 @@ export function StickyCompareBanner({
                   aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
                   className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
                 >
-                  <Heart className={`w-3.5 h-3.5 ${inGarage[1] ? 'fill-red-500' : ''}`} />
+                  <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'md')} />
                 </button>
                 <button
                   onClick={onChangeB}

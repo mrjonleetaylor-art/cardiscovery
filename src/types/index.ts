@@ -28,6 +28,7 @@ export interface VehicleSpecs {
     top_speed?: string;
     power?: string;
     torque?: string;
+    drivetrain?: string;
   };
   tech?: {
     infotainment?: string;
