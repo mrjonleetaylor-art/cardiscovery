@@ -1,5 +1,10 @@
 import { StructuredVehicle, Pack, Trim } from '../../types/specs';
 import { VehicleConfigSelection, ConfigGroup } from '../../types/config';
+import { TrimSection } from './sections/TrimSection';
+import { VariantSection } from './sections/VariantSection';
+import { SubvariantSection } from './sections/SubvariantSection';
+import { ConfigGroupsSection } from './sections/ConfigGroupsSection';
+import { PacksSection } from './sections/PacksSection';
 
 type ControlsMode = 'panel' | 'sidebar';
 
@@ -214,47 +219,16 @@ export function VehicleConfigurationControls({
     <>
       {/* ── Step 1: Trim selector ─────────────────────────────────────────── */}
       {showTrimSelector && (
-        <div className="mb-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">
-            Step 1 · Select Trim
-          </p>
-          {isSidebar ? (
-            <select
-              value={selection.trimId || vehicle.trims[0].id}
-              onChange={e => updateSelection({ trimId: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-            >
-              {vehicle.trims.map(trim => {
-                const delta = trim.basePrice - vehicle.trims[0].basePrice;
-                return (
-                  <option key={trim.id} value={trim.id}>
-                    {trim.name}{delta > 0 ? ` (+$${delta.toLocaleString()})` : ''}
-                  </option>
-                );
-              })}
-            </select>
-          ) : (
-            <div className={gridOrList(vehicle.trims.length)}>
-              {vehicle.trims.map(trim => {
-                const delta = trim.basePrice - vehicle.trims[0].basePrice;
-                const isSelected = selection.trimId === trim.id;
-                return (
-                  <button
-                    key={trim.id}
-                    type="button"
-                    onClick={() => updateSelection({ trimId: trim.id })}
-                    className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-sm">{trim.name}</span>
-                      <span className="text-sm">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <TrimSection
+          vehicle={vehicle}
+          selectedTrimId={selection.trimId}
+          onSelectTrim={(trimId) => updateSelection({ trimId })}
+          isSidebar={isSidebar}
+          btnBase={btnBase}
+          btnOn={btnOn}
+          btnOff={btnOff}
+          gridClass={gridOrList(vehicle.trims.length)}
+        />
       )}
 
       {/* ── Gated sections (variants / subvariants / configGroups) ─────────── */}
@@ -264,65 +238,37 @@ export function VehicleConfigurationControls({
 
         if (section.kind === 'variants') {
           return (
-            <div key="variants" className="mb-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-              <div className={gridOrList(vehicle.variants!.length)}>
-                {vehicle.variants!.map(v => {
-                  const isSelected = selection.variantId === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleVariant(v.id)}
-                      className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-sm">{v.name}</span>
-                        <span className={`text-sm ${isSidebar ? 'text-slate-600' : ''}`}>
-                          {v.priceDelta && v.priceDelta > 0 ? `+$${v.priceDelta.toLocaleString()}` : 'Base'}
-                        </span>
-                      </div>
-                      {showDescriptions && v.description && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{v.description}</p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <VariantSection
+              key="variants"
+              label={label}
+              variants={vehicle.variants!}
+              selectedVariantId={selection.variantId}
+              onToggleVariant={toggleVariant}
+              showDescriptions={showDescriptions}
+              isSidebar={isSidebar}
+              btnBase={btnBase}
+              btnOn={btnOn}
+              btnOff={btnOff}
+              gridClass={gridOrList(vehicle.variants!.length)}
+            />
           );
         }
 
         if (section.kind === 'subvariants') {
           return (
-            <div key="subvariants" className="mb-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-              <div className={gridOrList(vehicle.subvariants!.length)}>
-                {vehicle.subvariants!.map(s => {
-                  const isSelected = selection.subvariantId === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleSubvariant(s.id)}
-                      className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-sm">{s.name}</span>
-                        <span className={`text-sm ${isSidebar ? 'text-slate-600' : ''}`}>
-                          {s.priceDelta && s.priceDelta > 0 ? `+$${s.priceDelta.toLocaleString()}` : 'Base'}
-                        </span>
-                      </div>
-                      {showDescriptions && s.description && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{s.description}</p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <SubvariantSection
+              key="subvariants"
+              label={label}
+              subvariants={vehicle.subvariants!}
+              selectedSubvariantId={selection.subvariantId}
+              onToggleSubvariant={toggleSubvariant}
+              showDescriptions={showDescriptions}
+              isSidebar={isSidebar}
+              btnBase={btnBase}
+              btnOn={btnOn}
+              btnOff={btnOff}
+              gridClass={gridOrList(vehicle.subvariants!.length)}
+            />
           );
         }
 
@@ -330,37 +276,19 @@ export function VehicleConfigurationControls({
           const { group } = section;
           const selectedIds = selection.selectedOptionsByGroup?.[group.id] ?? [];
           return (
-            <div key={group.id} className="mb-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">{label}</p>
-              <div className={gridOrList(group.options.length)}>
-                {group.options.map(option => {
-                  const isSelected = group.type === 'single'
-                    ? selectedIds[0] === option.id
-                    : selectedIds.includes(option.id);
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleGroupOption(group.id, option.id, group.type)}
-                      className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-sm">{option.name}</span>
-                        <span className={`text-sm ${isSidebar ? 'text-slate-600' : ''}`}>
-                          {option.priceDelta && option.priceDelta > 0
-                            ? `+$${option.priceDelta.toLocaleString()}`
-                            : 'Base'}
-                        </span>
-                      </div>
-                      {showDescriptions && option.description && (
-                        <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{option.description}</p>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <ConfigGroupsSection
+              key={group.id}
+              label={label}
+              group={group}
+              selectedIds={selectedIds}
+              onToggleGroupOption={toggleGroupOption}
+              showDescriptions={showDescriptions}
+              isSidebar={isSidebar}
+              btnBase={btnBase}
+              btnOn={btnOn}
+              btnOff={btnOff}
+              gridClass={gridOrList(group.options.length)}
+            />
           );
         }
 
@@ -369,38 +297,16 @@ export function VehicleConfigurationControls({
 
       {/* ── Option Packs — last, gated behind all prior sections ──────────── */}
       {showPacks && packs.length > 0 && packsVisible && (
-        <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wide mb-2">{packsStepLabel}</p>
-          <div className={gridOrList(packs.length)}>
-            {packs.map(pack => {
-              const isSelected = selectedPackIds.includes(pack.id);
-              return (
-                <button
-                  key={pack.id}
-                  type="button"
-                  aria-pressed={isSelected}
-                  onClick={() => togglePack(pack.id)}
-                  className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
-                >
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="font-medium text-sm">{pack.name}</span>
-                    <span className="text-sm font-bold">+${pack.priceDelta.toLocaleString()}</span>
-                  </div>
-                  {pack.features.length > 0 && (
-                    <p className="text-xs text-slate-600 line-clamp-2">
-                      {pack.features.slice(0, 3).map((f, fi) => (
-                        <span key={fi}>• {f} </span>
-                      ))}
-                      {pack.features.length > 3 && (
-                        <span className="italic">+{pack.features.length - 3} more</span>
-                      )}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <PacksSection
+          label={packsStepLabel}
+          packs={packs}
+          selectedPackIds={selectedPackIds}
+          onTogglePack={togglePack}
+          btnBase={btnBase}
+          btnOn={btnOn}
+          btnOff={btnOff}
+          gridClass={gridOrList(packs.length)}
+        />
       )}
     </>
   );
