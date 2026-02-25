@@ -6,6 +6,7 @@ import VehicleDetailPage from './components/VehicleDetailPage';
 import Comparisons from './components/Comparisons';
 import GaragePage from './components/GaragePage';
 import { seedDatabase } from './lib/seedDatabase';
+import { AdminApp } from './admin/AdminApp';
 
 type CarFinderWindowEventMap = {
   'garage-updated': Event;
@@ -82,6 +83,19 @@ function AppContent() {
 }
 
 function App() {
+  const [isAdmin, setIsAdmin] = useState(() => window.location.hash.startsWith('#/admin'));
+
+  useEffect(() => {
+    const handler = () => setIsAdmin(window.location.hash.startsWith('#/admin'));
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  if (isAdmin) {
+    // Admin runs inside its own auth guard — no AuthProvider overlap needed
+    return <AdminApp />;
+  }
+
   return (
     <AuthProvider>
       <AppContent />
