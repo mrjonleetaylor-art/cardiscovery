@@ -63,24 +63,35 @@ export function VehicleProfileContent({
 
   return (
     <>
-      <div
-        className={`bg-slate-200 rounded-xl overflow-hidden ${
-          isModal ? 'h-[220px] sm:h-[240px] mb-4' : 'aspect-[16/9] mb-3'
-        }`}
-      >
-        {heroSrc && !heroError ? (
-          <img
-            src={heroSrc}
-            alt={`${vehicle.make} ${vehicle.model}`}
-            className="w-full h-full object-cover"
-            onError={() => setHeroError(true)}
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-400">
-            No Image Available
-          </div>
-        )}
-      </div>
+      {isModal ? (
+        <div className="h-[180px] sm:h-[220px] mb-4 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
+          {heroSrc && !heroError ? (
+            <img
+              src={heroSrc}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              className="max-w-full max-h-full object-contain"
+              onError={() => setHeroError(true)}
+            />
+          ) : (
+            <span className="text-sm text-slate-400">No Image Available</span>
+          )}
+        </div>
+      ) : (
+        <div className="bg-slate-200 rounded-xl overflow-hidden aspect-[16/9] mb-3">
+          {heroSrc && !heroError ? (
+            <img
+              src={heroSrc}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              className="w-full h-full object-cover"
+              onError={() => setHeroError(true)}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-400">
+              No Image Available
+            </div>
+          )}
+        </div>
+      )}
 
       {gallery.length > 1 && (
         <div className={`flex overflow-x-auto pb-1 ${isModal ? 'gap-1.5 mb-4' : 'gap-2 mb-6'}`}>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Trash2, GitCompare, RefreshCw, ChevronRight } from 'lucide-react';
+import { X, Trash2, GitCompare, RefreshCw } from 'lucide-react';
 import { StructuredVehicle } from '../../types/specs';
 import { VehicleConfigSelection } from '../../types/config';
 import { GarageItem, removeGarageItem, upsertGarageItem, doesSavedSelectionMatch } from '../../lib/session';
@@ -33,22 +33,28 @@ export function GarageProfileModal({
 
   const isDirty = !doesSavedSelectionMatch(vehicle.id, selection);
 
+  // Primary image for the sticky context bar thumbnail
+  const heroSrc =
+    resolvedData.heroImageUrl ??
+    resolvedData.resolvedImages[0] ??
+    vehicle.images[0] ??
+    null;
+
+  // Lock body scroll; return focus to opener on unmount
   useEffect(() => {
     closeRef.current?.focus();
-    const originalOverflow = document.body.style.overflow;
+    const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = originalOverflow;
+      document.body.style.overflow = prev;
       returnFocusTo?.focus();
     };
   }, [returnFocusTo]);
 
+  // ESC close + Tab focus trap
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
+      if (e.key === 'Escape') { onClose(); return; }
       if (e.key !== 'Tab') return;
       const root = dialogRef.current;
       if (!root) return;
@@ -56,22 +62,17 @@ export function GarageProfileModal({
         root.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter((el) => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null);
-      if (focusables.length === 0) {
-        e.preventDefault();
-        return;
-      }
+      ).filter(
+        (el) => !el.hasAttribute('disabled') && el.tabIndex !== -1 && el.offsetParent !== null,
+      );
+      if (focusables.length === 0) { e.preventDefault(); return; }
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const active = document.activeElement as HTMLElement | null;
       if (e.shiftKey) {
-        if (active === first || !root.contains(active)) {
-          e.preventDefault();
-          last.focus();
-        }
+        if (active === first || !root.contains(active)) { e.preventDefault(); last.focus(); }
       } else if (active === last || !root.contains(active)) {
-        e.preventDefault();
-        first.focus();
+        e.preventDefault(); first.focus();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -92,16 +93,7 @@ export function GarageProfileModal({
   };
 
   const handleCompare = () => {
-    window.dispatchEvent(
-      new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }),
-    );
-  };
-
-  const handleViewProfile = () => {
-    window.dispatchEvent(
-      new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }),
-    );
-    onClose();
+    window.dispatchEvent(new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }));
   };
 
   return (
@@ -111,12 +103,17 @@ export function GarageProfileModal({
       aria-modal="true"
       aria-labelledby={titleId}
     >
+      {/* Backdrop */}
       <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden="true" />
 
+      {/* Modal container */}
       <div
         ref={dialogRef}
+        data-testid="garage-profile-modal"
         className="relative w-[min(1100px,92vw)] max-h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
       >
+
+        {/* ── Fixed title bar ────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 flex-shrink-0">
           <div className="min-w-0 mr-3">
             <h2 id={titleId} className="text-sm font-semibold text-slate-900 truncate leading-tight">
@@ -136,53 +133,79 @@ export function GarageProfileModal({
           </button>
         </div>
 
-        <div className="overflow-y-auto px-5 py-4 md:px-6">
-          <VehicleProfileContent
-            vehicle={vehicle}
-            selection={selection}
-            resolvedData={resolvedData}
-            onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}
-            mode="modal"
-            showTrimOptions={true}
-          />
+        {/* ── Mini banner — pinned, holds identity + action buttons ────────── */}
+        <div className="flex-shrink-0 bg-white border-b border-slate-200 px-4 py-2 flex items-center gap-3 z-10">
+          {heroSrc && (
+            <div className="flex-shrink-0 w-12 h-9 rounded overflow-hidden bg-slate-100">
+              <img
+                src={heroSrc}
+                alt=""
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.currentTarget.parentElement as HTMLElement).style.display = 'none';
+                }}
+              />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-900 truncate leading-tight">
+              {vehicle.year} {vehicle.make} {vehicle.model}
+            </p>
+            <p className="text-xs text-slate-500 truncate">{resolvedData.selectedTrim.name}</p>
+          </div>
+          {/* Action buttons — always horizontal, labels hidden on xs */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={handleCompare}
+              aria-label="Add to Compare"
+              className="h-9 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-xs font-medium transition-colors whitespace-nowrap"
+            >
+              <GitCompare className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">Compare</span>
+            </button>
+            <button
+              onClick={handleUpdate}
+              disabled={!isDirty}
+              aria-disabled={!isDirty}
+              aria-label="Update Garage"
+              className={`h-9 flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium transition-colors whitespace-nowrap ${
+                isDirty
+                  ? 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                  : 'border-slate-200 text-slate-400 bg-white cursor-not-allowed'
+              }`}
+            >
+              <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">Update</span>
+            </button>
+            <button
+              onClick={handleRemove}
+              aria-label="Remove from Garage"
+              className="h-9 flex items-center gap-1.5 px-3 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-xs font-medium transition-colors whitespace-nowrap"
+            >
+              <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span className="hidden sm:inline">Remove</span>
+            </button>
+          </div>
         </div>
 
-        <div className="px-5 py-4 md:px-6 border-t border-slate-200 bg-white/95 backdrop-blur-sm flex-shrink-0 sticky bottom-0 space-y-2">
-          <button
-            onClick={handleCompare}
-            className="w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-sm font-medium transition-colors"
-          >
-            <GitCompare className="w-4 h-4" />
-            Add to Compare
-          </button>
-          <button
-            onClick={handleUpdate}
-            disabled={!isDirty}
-            aria-disabled={!isDirty}
-            className={`w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border text-sm font-medium transition-colors ${
-              isDirty
-                ? 'border-slate-700 text-slate-800 bg-white hover:bg-slate-50'
-                : 'border-slate-200 text-slate-400 bg-white cursor-not-allowed'
-            }`}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Update Garage
-          </button>
-          <button
-            onClick={handleRemove}
-            className="w-full h-10 flex items-center justify-center gap-2 px-4 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-medium transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Remove from Garage
-          </button>
-          <button
-            onClick={handleViewProfile}
-            className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-slate-500 hover:text-slate-700 text-xs font-medium transition-colors"
-          >
-            View full profile
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
+        {/* ── Scrollable body ────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* Full profile content */}
+          <div className="px-4 py-4 sm:px-5">
+            <VehicleProfileContent
+              vehicle={vehicle}
+              selection={selection}
+              resolvedData={resolvedData}
+              onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}
+              mode="modal"
+              showTrimOptions={true}
+            />
+          </div>
+
         </div>
+
+
       </div>
     </div>
   );

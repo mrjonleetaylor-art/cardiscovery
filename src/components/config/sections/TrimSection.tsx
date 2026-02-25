@@ -49,11 +49,11 @@ export function TrimSection({
                 key={trim.id}
                 type="button"
                 onClick={() => onSelectTrim(trim.id)}
-                className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
+                className={`${btnBase} ${isSelected ? btnOn : btnOff} overflow-hidden`}
               >
-                <div className="flex justify-between items-center">
-                  <span className="font-medium text-sm">{trim.name}</span>
-                  <span className="text-sm">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
+                <div className="flex items-start gap-2 overflow-hidden">
+                  <span className="font-medium text-sm min-w-0 break-words flex-1">{trim.name}</span>
+                  <span className="text-xs sm:text-sm flex-shrink-0 whitespace-nowrap text-right">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
                 </div>
               </button>
             );

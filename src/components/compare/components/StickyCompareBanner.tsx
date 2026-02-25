@@ -57,7 +57,7 @@ export function StickyCompareBanner({
         <div className="bg-slate-50" />
         {/* Car A */}
         <div className="p-3 sm:p-4">
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex items-start flex-wrap gap-2">
             <div className="flex-1 min-w-0 flex gap-3">
               {(heroUrl1 ?? v1.images[0]) && (
                 <div className="flex-shrink-0 w-14 h-10 rounded overflow-hidden bg-slate-100">
@@ -81,7 +81,7 @@ export function StickyCompareBanner({
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
               <button
                 onClick={() => onToggleGarage(0)}
                 aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
@@ -121,7 +121,7 @@ export function StickyCompareBanner({
               <p className="text-sm text-slate-400">No Car B selected</p>
             </div>
           ) : (
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start flex-wrap gap-2">
               <div className="flex-1 min-w-0 flex gap-3">
                 {(heroUrl2 ?? v2.images[0]) && (
                   <div className="flex-shrink-0 w-14 h-10 rounded overflow-hidden bg-slate-100">
@@ -145,7 +145,7 @@ export function StickyCompareBanner({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
                 <button
                   onClick={() => onToggleGarage(1)}
                   aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
