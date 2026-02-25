@@ -55,7 +55,7 @@ export const structuredVehicles: StructuredVehicle[] = [
     ],
   },
 
-  // ─── 2. Tesla Model 3 2024 — packs WITH specAdjustments ─────────────────
+  // ─── 2. Tesla Model 3 2024 — configGroups (trim + driverAssist) ──────────
   {
     id: 'tesla-model3-2024',
     make: 'Tesla',
@@ -71,7 +71,7 @@ export const structuredVehicles: StructuredVehicle[] = [
     tradeOffs: ['No spare wheel', 'Firm ride on base trim', 'Charging network dependency'],
     trims: [
       {
-        id: 'model3-rwd',
+        id: 'model3-base',
         name: 'RWD',
         basePrice: 63900,
         specs: {
@@ -81,94 +81,102 @@ export const structuredVehicles: StructuredVehicle[] = [
           connectivity: { screenSize: '15.4" touchscreen', digitalCluster: 'No separate cluster', appleCarPlay: 'No', androidAuto: 'No', wirelessCharging: 'Yes', soundSystem: '14-speaker premium', appSupport: 'Tesla app', otaUpdates: 'Yes', techSummary: 'All controls via the central screen. OTA updates continuously add features.' },
           safety: { ancapRating: '5 stars', adaptiveCruise: 'Autopilot standard', blindSpotMonitoring: 'Standard', laneKeepAssist: 'Standard', aeb: 'Standard', airbags: 8, rearCrossTraffic: 'Standard', safetySummary: 'Top ANCAP score. Autopilot standard with optional Full Self-Driving upgrade.' },
         },
-        packs: [
-          {
-            id: 'model3-rwd-fsd',
-            name: 'Full Self-Driving',
-            category: 'Driver Assist',
-            priceDelta: 10100,
-            description: 'Expands Autopilot with city street navigation and self-parking.',
-            features: ['Navigate on Autopilot', 'Auto Lane Change', 'Autopark', 'Summon', 'Traffic Light & Stop Sign Control'],
-            specAdjustments: [
-              { category: 'safety', field: 'adaptiveCruise', value: 'Full Self-Driving capable' },
-              { category: 'connectivity', field: 'appSupport', value: 'Tesla app + FSD visualisation' },
-            ],
-          },
-          {
-            id: 'model3-rwd-perf',
-            name: 'Performance Upgrade',
-            category: 'Performance',
-            priceDelta: 8000,
-            description: 'Unlocks higher power output for faster acceleration.',
-            features: ['Increased peak power output', 'Sport pedal feel', 'Track mode', 'Lowered suspension'],
-            specAdjustments: [
-              { category: 'performance', field: 'power', value: '239 kW' },
-              { category: 'performance', field: 'zeroToHundred', value: '4.4s' },
-              { category: 'performance', field: 'suspension', value: 'Double wishbone / multi-link (lowered)' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'model3-lr',
-        name: 'Long Range AWD',
-        basePrice: 73900,
-        specs: {
-          overview: { bodyType: 'Sedan', fuelType: 'Electric', drivetrain: 'AWD', transmission: 'Single-speed direct drive', seating: 5, warranty: '4 years / 80,000 km' },
-          efficiency: { fuelEconomy: '14.2 kWh/100km', realWorldEstimate: '16 kWh/100km', fuelTank: '75 kWh battery', estimatedRange: '629 km', serviceInterval: '24 months', annualRunningCost: '$600', ownershipSummary: 'Industry-leading range eliminates anxiety for most buyers, including longer road trips.' },
-          performance: { power: '366 kW', torque: '493 Nm', zeroToHundred: '4.4s', topSpeed: '233 km/h', weight: '1,830 kg', powerToWeight: '200 kW/t', suspension: 'Double wishbone / multi-link', engine: 'Dual electric motors', drivingCharacter: 'Swift and planted. AWD traction inspires confidence in all conditions.' },
-          connectivity: { screenSize: '15.4" touchscreen', digitalCluster: 'No separate cluster', appleCarPlay: 'No', androidAuto: 'No', wirelessCharging: 'Yes', soundSystem: '17-speaker immersive', appSupport: 'Tesla app', otaUpdates: 'Yes', techSummary: 'Upgraded 17-speaker sound and the same seamless OTA update capability.' },
-          safety: { ancapRating: '5 stars', adaptiveCruise: 'Autopilot standard', blindSpotMonitoring: 'Standard', laneKeepAssist: 'Standard', aeb: 'Standard', airbags: 8, rearCrossTraffic: 'Standard', safetySummary: '5-star ANCAP. AWD provides extra stability in adverse conditions.' },
-        },
-        packs: [
-          {
-            id: 'model3-lr-fsd',
-            name: 'Full Self-Driving',
-            category: 'Driver Assist',
-            priceDelta: 10100,
-            description: 'Expands Autopilot with city street navigation and self-parking.',
-            features: ['Navigate on Autopilot', 'Auto Lane Change', 'Autopark', 'Summon', 'Traffic Light & Stop Sign Control'],
-            specAdjustments: [
-              { category: 'safety', field: 'adaptiveCruise', value: 'Full Self-Driving capable' },
-              { category: 'connectivity', field: 'appSupport', value: 'Tesla app + FSD visualisation' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'model3-perf',
-        name: 'Performance',
-        basePrice: 83900,
-        specs: {
-          overview: { bodyType: 'Sedan', fuelType: 'Electric', drivetrain: 'AWD', transmission: 'Single-speed direct drive', seating: 5, warranty: '4 years / 80,000 km' },
-          efficiency: { fuelEconomy: '15.8 kWh/100km', realWorldEstimate: '18 kWh/100km', fuelTank: '75 kWh battery', estimatedRange: '567 km', serviceInterval: '24 months', annualRunningCost: '$680', ownershipSummary: 'Slightly higher energy use than Long Range but still a fraction of petrol alternatives.' },
-          performance: { power: '460 kW', torque: '660 Nm', zeroToHundred: '3.1s', topSpeed: '261 km/h', weight: '1,847 kg', powerToWeight: '249 kW/t', suspension: 'Adaptive dampers / multi-link (lowered)', engine: 'Dual high-output electric motors', drivingCharacter: 'Supercar performance in a family sedan. Track-tuned suspension with supercar launch.' },
-          connectivity: { screenSize: '15.4" touchscreen', digitalCluster: 'No separate cluster', appleCarPlay: 'No', androidAuto: 'No', wirelessCharging: 'Yes', soundSystem: '17-speaker immersive', appSupport: 'Tesla app', otaUpdates: 'Yes', techSummary: 'Same tech suite as Long Range with Track Mode accessible via the screen.' },
-          safety: { ancapRating: '5 stars', adaptiveCruise: 'Autopilot standard', blindSpotMonitoring: 'Standard', laneKeepAssist: 'Standard', aeb: 'Standard', airbags: 8, rearCrossTraffic: 'Standard', safetySummary: 'Full active safety suite. Track Mode integrates traction controls.' },
-        },
         packs: [],
       },
     ],
-    // Layer 1 variants — powertrain configuration
-    variants: [
+    configGroups: [
       {
-        id: 'model3-config-standard',
-        name: 'Standard',
-        description: 'Base powertrain. Specs as per selected trim.',
-        effects: [],
+        id: 'trim',
+        title: 'Trim',
+        type: 'single',
+        options: [
+          {
+            id: 'model3-trim-rwd',
+            name: 'RWD',
+            description: 'Single rear motor. Ideal for city and suburban driving.',
+            priceDelta: 0,
+            effects: [],
+          },
+          {
+            id: 'model3-trim-lr',
+            name: 'Long Range',
+            description: 'Dual motor AWD with class-leading range for long-distance confidence.',
+            priceDelta: 10000,
+            effects: [
+              { path: 'specs.overview.drivetrain', op: 'set', value: 'AWD' },
+              { path: 'specs.performance.power', op: 'set', value: '366 kW' },
+              { path: 'specs.performance.torque', op: 'set', value: '493 Nm' },
+              { path: 'specs.performance.zeroToHundred', op: 'set', value: '4.4s' },
+              { path: 'specs.performance.topSpeed', op: 'set', value: '233 km/h' },
+              { path: 'specs.performance.weight', op: 'set', value: '1,830 kg' },
+              { path: 'specs.performance.powerToWeight', op: 'set', value: '200 kW/t' },
+              { path: 'specs.performance.engine', op: 'set', value: 'Dual electric motors' },
+              { path: 'specs.performance.drivingCharacter', op: 'set', value: 'Swift and planted. AWD traction inspires confidence in all conditions.' },
+              { path: 'specs.efficiency.fuelEconomy', op: 'set', value: '14.2 kWh/100km' },
+              { path: 'specs.efficiency.realWorldEstimate', op: 'set', value: '16 kWh/100km' },
+              { path: 'specs.efficiency.fuelTank', op: 'set', value: '75 kWh battery' },
+              { path: 'specs.efficiency.estimatedRange', op: 'set', value: '629 km' },
+              { path: 'specs.efficiency.annualRunningCost', op: 'set', value: '$600' },
+              { path: 'specs.efficiency.ownershipSummary', op: 'set', value: 'Industry-leading range eliminates anxiety for most buyers, including longer road trips.' },
+              { path: 'specs.connectivity.soundSystem', op: 'set', value: '17-speaker immersive' },
+              { path: 'specs.connectivity.techSummary', op: 'set', value: 'Upgraded 17-speaker sound and the same seamless OTA update capability.' },
+              { path: 'specs.safety.safetySummary', op: 'set', value: '5-star ANCAP. AWD provides extra stability in adverse conditions.' },
+            ],
+          },
+          {
+            id: 'model3-trim-perf',
+            name: 'Performance',
+            description: 'Track-tuned dual motors with supercar acceleration and adaptive suspension.',
+            priceDelta: 20000,
+            effects: [
+              { path: 'specs.overview.drivetrain', op: 'set', value: 'AWD' },
+              { path: 'specs.performance.power', op: 'set', value: '460 kW' },
+              { path: 'specs.performance.torque', op: 'set', value: '660 Nm' },
+              { path: 'specs.performance.zeroToHundred', op: 'set', value: '3.1s' },
+              { path: 'specs.performance.topSpeed', op: 'set', value: '261 km/h' },
+              { path: 'specs.performance.weight', op: 'set', value: '1,847 kg' },
+              { path: 'specs.performance.powerToWeight', op: 'set', value: '249 kW/t' },
+              { path: 'specs.performance.engine', op: 'set', value: 'Dual high-output electric motors' },
+              { path: 'specs.performance.suspension', op: 'set', value: 'Adaptive dampers / multi-link (lowered)' },
+              { path: 'specs.performance.drivingCharacter', op: 'set', value: 'Supercar performance in a family sedan. Track-tuned suspension with supercar launch.' },
+              { path: 'specs.efficiency.fuelEconomy', op: 'set', value: '15.8 kWh/100km' },
+              { path: 'specs.efficiency.realWorldEstimate', op: 'set', value: '18 kWh/100km' },
+              { path: 'specs.efficiency.fuelTank', op: 'set', value: '75 kWh battery' },
+              { path: 'specs.efficiency.estimatedRange', op: 'set', value: '567 km' },
+              { path: 'specs.efficiency.annualRunningCost', op: 'set', value: '$680' },
+              { path: 'specs.efficiency.ownershipSummary', op: 'set', value: 'Slightly higher energy use than Long Range but still a fraction of petrol alternatives.' },
+              { path: 'specs.connectivity.soundSystem', op: 'set', value: '17-speaker immersive' },
+              { path: 'specs.connectivity.techSummary', op: 'set', value: 'Same tech suite as Long Range with Track Mode accessible via the screen.' },
+              { path: 'specs.safety.safetySummary', op: 'set', value: 'Full active safety suite. Track Mode integrates traction controls.' },
+              { path: 'images', op: 'replace', value: ['https://images.pexels.com/photos/3752169/pexels-photo-3752169.jpeg'] },
+            ],
+          },
+        ],
       },
       {
-        id: 'model3-config-performance',
-        name: 'Performance',
-        description: 'Track-tuned output. Increases peak power, sharpens acceleration, and lowers the suspension.',
-        priceDelta: 15000,
-        effects: [
-          { path: 'specs.performance.power', op: 'set', value: '460 kW' },
-          { path: 'specs.performance.zeroToHundred', op: 'set', value: '3.1s' },
-          { path: 'specs.performance.suspension', op: 'set', value: 'Adaptive dampers / multi-link (lowered)' },
-          { path: 'specs.performance.drivingCharacter', op: 'set', value: 'Supercar performance in a family sedan. Track-tuned suspension with supercar launch.' },
-          // Replace gallery with the performance-focused image
-          { path: 'images', op: 'replace', value: ['https://images.pexels.com/photos/3752169/pexels-photo-3752169.jpeg'] },
+        id: 'driverAssist',
+        title: 'Driver Assist',
+        type: 'single',
+        options: [
+          {
+            id: 'model3-da-eap',
+            name: 'Enhanced Autopilot',
+            description: 'Adds Navigate on Autopilot, Auto Lane Change, Autopark, and Summon.',
+            priceDelta: 3500,
+            effects: [
+              { path: 'specs.safety.adaptiveCruise', op: 'set', value: 'Enhanced Autopilot' },
+            ],
+          },
+          {
+            id: 'model3-da-fsd',
+            name: 'Full Self-Driving',
+            description: 'Expands Autopilot with city street navigation, traffic light recognition, and self-parking.',
+            priceDelta: 10100,
+            effects: [
+              { path: 'specs.safety.adaptiveCruise', op: 'set', value: 'Full Self-Driving capable' },
+              { path: 'specs.connectivity.appSupport', op: 'set', value: 'Tesla app + FSD visualisation' },
+            ],
+          },
         ],
       },
     ],

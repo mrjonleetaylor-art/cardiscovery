@@ -20,10 +20,19 @@ export interface ConfigOption {
   effects: Effect[];
 }
 
-/** Full selection state across all four layers. */
+/** A dynamic configuration group (single-select or multi-select). */
+export interface ConfigGroup {
+  id: string;
+  title: string;
+  type: 'single' | 'multi';
+  options: ConfigOption[];
+}
+
+/** Full selection state across all layers. */
 export interface VehicleConfigSelection {
   variantId?: string | null;    // Layer 1
   subvariantId?: string | null; // Layer 2
   trimId?: string | null;       // Layer 3 (existing)
   packIds: string[];            // Layer 4 (existing)
+  selectedOptionsByGroup?: Record<string, string[]>; // Layer 5 (configGroups)
 }

@@ -100,6 +100,8 @@ export interface StructuredVehicle {
   variants?: import('./config').ConfigOption[];
   /** Layer 2 — secondary configuration (body style, drivetrain mode, etc.). */
   subvariants?: import('./config').ConfigOption[];
+  /** Dynamic configuration groups (single-select or multi-select). Replaces flat packs UX where used. */
+  configGroups?: import('./config').ConfigGroup[];
 }
 
 export interface ResolvedSpecs {

@@ -22,6 +22,7 @@ function createEmptySelection(): VehicleConfigSelection {
     subvariantId: null,
     trimId: null,
     packIds: [],
+    selectedOptionsByGroup: {},
   };
 }
 
@@ -32,6 +33,7 @@ function createSelectionForVehicle(vehicle: StructuredVehicle | null): VehicleCo
     subvariantId: null,
     trimId: vehicle.trims[0]?.id ?? null,
     packIds: [],
+    selectedOptionsByGroup: {},
   };
 }
 
@@ -40,12 +42,23 @@ function sanitizeSelection(vehicle: StructuredVehicle, selection: VehicleConfigS
   const validPackIds = new Set(trim?.packs.map((p) => p.id) ?? []);
   const validVariantIds = new Set(vehicle.variants?.map((v) => v.id) ?? []);
   const validSubvariantIds = new Set(vehicle.subvariants?.map((s) => s.id) ?? []);
+  const validGroupIds = new Set((vehicle.configGroups ?? []).map((g) => g.id));
+
+  const sanitizedGroups: Record<string, string[]> = {};
+  for (const [groupId, optionIds] of Object.entries(selection.selectedOptionsByGroup ?? {})) {
+    if (!validGroupIds.has(groupId)) continue;
+    const group = vehicle.configGroups!.find((g) => g.id === groupId)!;
+    const validOptionIds = new Set(group.options.map((o) => o.id));
+    const filtered = optionIds.filter((id) => validOptionIds.has(id));
+    if (filtered.length > 0) sanitizedGroups[groupId] = filtered;
+  }
 
   return {
     variantId: selection.variantId && validVariantIds.has(selection.variantId) ? selection.variantId : null,
     subvariantId: selection.subvariantId && validSubvariantIds.has(selection.subvariantId) ? selection.subvariantId : null,
     trimId: trim?.id ?? null,
     packIds: (selection.packIds ?? []).filter((id) => validPackIds.has(id)),
+    selectedOptionsByGroup: sanitizedGroups,
   };
 }
 

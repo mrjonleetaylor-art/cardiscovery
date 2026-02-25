@@ -12,11 +12,17 @@ function emptySelection(): VehicleConfigSelection {
 }
 
 function normalizeSelection(sel: VehicleConfigSelection): VehicleConfigSelection {
+  const normalizedGroups = Object.fromEntries(
+    Object.entries(sel.selectedOptionsByGroup ?? {})
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, v]) => [k, [...v].sort()]),
+  );
   return {
     variantId: sel.variantId ?? null,
     subvariantId: sel.subvariantId ?? null,
     trimId: sel.trimId ?? null,
     packIds: [...(sel.packIds ?? [])].sort(),
+    selectedOptionsByGroup: normalizedGroups,
   };
 }
 
@@ -27,7 +33,8 @@ function selectionsEqual(a: VehicleConfigSelection, b: VehicleConfigSelection): 
     na.variantId === nb.variantId &&
     na.subvariantId === nb.subvariantId &&
     na.trimId === nb.trimId &&
-    JSON.stringify(na.packIds) === JSON.stringify(nb.packIds)
+    JSON.stringify(na.packIds) === JSON.stringify(nb.packIds) &&
+    JSON.stringify(na.selectedOptionsByGroup) === JSON.stringify(nb.selectedOptionsByGroup)
   );
 }
 

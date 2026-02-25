@@ -104,6 +104,26 @@ export function resolveConfiguredVehicle(
     }
   }
 
+  // Layer 5 — configGroups (single first, then multi, in declared order)
+  if (vehicle.configGroups?.length) {
+    const groupSelection = selection.selectedOptionsByGroup ?? {};
+    const allGroups = vehicle.configGroups;
+    const singleGroups = allGroups.filter(g => g.type === 'single');
+    const multiGroups = allGroups.filter(g => g.type === 'multi');
+
+    for (const group of [...singleGroups, ...multiGroups]) {
+      const selectedIds = groupSelection[group.id] ?? [];
+      const optionsToApply = group.type === 'single'
+        ? group.options.filter(o => o.id === selectedIds[0])
+        : group.options.filter(o => selectedIds.includes(o.id));
+
+      for (const option of optionsToApply) {
+        ({ specs, images, heroOverride } = applyOptionEffects(option, specs, images, heroOverride));
+        priceDelta += option.priceDelta ?? 0;
+      }
+    }
+  }
+
   return {
     ...base,
     specs,

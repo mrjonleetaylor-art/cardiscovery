@@ -41,6 +41,17 @@ export function buildConfigSummary(
     }
   }
 
+  // ConfigGroups — in group declaration order, then option selection order
+  if (selection.selectedOptionsByGroup) {
+    for (const group of vehicle.configGroups ?? []) {
+      const selectedIds = selection.selectedOptionsByGroup[group.id] ?? [];
+      for (const optionId of selectedIds) {
+        const option = group.options.find(o => o.id === optionId);
+        if (option && option.priceDelta) tokens.push(option.name);
+      }
+    }
+  }
+
   if (tokens.length === 0) return '';
   if (tokens.length <= MAX_TOKENS) return tokens.join(' · ');
   return tokens.slice(0, MAX_TOKENS).join(' · ') + ` +${tokens.length - MAX_TOKENS} more`;

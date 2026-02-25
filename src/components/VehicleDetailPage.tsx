@@ -1,12 +1,22 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Minus, ChevronDown, ChevronUp, Check, X } from 'lucide-react';
-import { StructuredVehicle, Pack } from '../types/specs';
+import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
 import { structuredVehicles } from '../data/structuredVehicles';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { VehicleConfigurationControls } from './config/VehicleConfigurationControls';
+
+function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfigSelection): VehicleConfigSelection {
+  const trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
+  const validPackIds = new Set(trim?.packs.map(p => p.id) ?? []);
+  return {
+    ...sel,
+    trimId: trim?.id ?? null,
+    packIds: (sel.packIds ?? []).filter(id => validPackIds.has(id)),
+  };
+}
 
 interface VehicleDetailPageProps {
   vehicleId: string;
@@ -23,10 +33,9 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     packIds: [],
   });
   const [heroIndex, setHeroIndex] = useState(0);
-  const [resolvedData, setResolvedData] = useState<ResolvedVehicle | null>(null);
   const [heroError, setHeroError] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['option-packs']));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['trim-options']));
   const [similarVehicles, setSimilarVehicles] = useState<StructuredVehicle[]>([]);
 
   useEffect(() => {
@@ -38,6 +47,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
         subvariantId: null,
         trimId: found.trims[0]?.id ?? null,
         packIds: [],
+        selectedOptionsByGroup: {},
       });
       setHeroIndex(0);
       const bodyType = found.trims[0]?.specs.overview.bodyType;
@@ -49,10 +59,9 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     }
   }, [vehicleId]);
 
-  useEffect(() => {
-    if (vehicle) {
-      setResolvedData(resolveConfiguredVehicle(vehicle, selection));
-    }
+  const resolvedData: ResolvedVehicle | null = useMemo(() => {
+    if (!vehicle) return null;
+    return resolveConfiguredVehicle(vehicle, sanitizeProfileSelection(vehicle, selection));
   }, [vehicle, selection]);
 
   // Reset heroIndex when the resolved image gallery changes (e.g. variant swap)
@@ -103,15 +112,6 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     setExpandedSections(newExpanded);
   };
 
-  const togglePack = (packId: string) => {
-    setSelection((prev) => ({
-      ...prev,
-      packIds: prev.packIds.includes(packId)
-        ? prev.packIds.filter((p) => p !== packId)
-        : [...prev.packIds, packId],
-    }));
-  };
-
   if (!vehicle) {
     return (
       <div className="min-h-screen bg-slate-50 pt-20 pb-12 px-4">
@@ -125,12 +125,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
     );
   }
 
-  const priceRange = vehicle.trims.length > 1
-    ? `$${vehicle.trims[0].basePrice.toLocaleString()} – $${Math.max(...vehicle.trims.map(t => t.basePrice)).toLocaleString()}`
-    : `$${(resolvedData?.totalPrice ?? vehicle.trims[0].basePrice).toLocaleString()}`;
-
   const specs = resolvedData?.specs;
-  const currentTrimPacks = resolvedData?.selectedTrim.packs ?? [];
 
   return (
     <div className="min-h-screen bg-slate-50 pt-20 pb-12">
@@ -206,59 +201,22 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
             </div>
 
             <AccordionSection
-              title="Option Packs"
-              isExpanded={expandedSections.has('option-packs')}
-              onToggle={() => toggleSection('option-packs')}
+              title="Trim & Options"
+              isExpanded={expandedSections.has('trim-options')}
+              onToggle={() => toggleSection('trim-options')}
             >
-              {currentTrimPacks.length > 0 ? (
-                <div className="space-y-4">
-                  {currentTrimPacks.map((pack: Pack) => {
-                    const isSelected = selection.packIds.includes(pack.id);
-                    return (
-                      <div
-                        key={pack.id}
-                        className={`border-2 rounded-lg p-5 cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-slate-900 bg-slate-50'
-                            : 'border-slate-200 hover:border-slate-300'
-                        }`}
-                        onClick={() => togglePack(pack.id)}
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                              isSelected ? 'bg-slate-900 border-slate-900' : 'border-slate-300'
-                            }`}>
-                              {isSelected && <Check className="w-3 h-3 text-white" />}
-                            </div>
-                            <div>
-                              <h4 className="font-semibold text-slate-900">{pack.name}</h4>
-                              <p className="text-sm text-slate-600">{pack.category}</p>
-                            </div>
-                          </div>
-                          <span className="font-bold text-slate-900">
-                            +${pack.priceDelta.toLocaleString()}
-                          </span>
-                        </div>
-                        {pack.description && (
-                          <p className="text-sm text-slate-600 mb-2 ml-8">{pack.description}</p>
-                        )}
-                        {pack.features.length > 0 && (
-                          <div className="ml-8 space-y-1">
-                            {pack.features.slice(0, 6).map((f, idx) => (
-                              <p key={idx} className="text-sm text-slate-600">• {f}</p>
-                            ))}
-                            {pack.features.length > 6 && (
-                              <p className="text-sm text-slate-500 italic">+ {pack.features.length - 6} more features</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-slate-600">No additional packs available for this trim</p>
+              <VehicleConfigurationControls
+                vehicle={vehicle}
+                selection={selection}
+                onChange={(patch) => setSelection(prev => ({ ...prev, ...patch }))}
+                onHeroReset={() => setHeroIndex(0)}
+                mode="panel"
+                showPacks={true}
+                showConfigGroups={true}
+                showDescriptions={true}
+              />
+              {resolvedData && resolvedData.selectedTrim.packs.length === 0 && !vehicle.configGroups?.length && (
+                <p className="text-sm text-slate-500 mt-2">No additional packs available for this trim.</p>
               )}
             </AccordionSection>
 
@@ -410,25 +368,10 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
                 )}
 
                 <div className="mb-6">
-                  <VehicleConfigurationControls
-                    vehicle={vehicle}
-                    selection={selection}
-                    onChange={(selectionPatch) => setSelection((prev) => ({ ...prev, ...selectionPatch }))}
-                    onHeroReset={() => setHeroIndex(0)}
-                    mode="sidebar"
-                    showPacks={false}
-                    showDescriptions={true}
-                  />
-                </div>
-
-                <div className="mb-6">
-                  <div className="text-sm text-slate-600 mb-1">Price Range</div>
-                  <div className="text-3xl font-bold text-slate-900">{priceRange}</div>
-                  {selection.packIds.length > 0 && resolvedData && (
-                    <div className="text-sm text-slate-600 mt-1">
-                      With {selection.packIds.length} pack{selection.packIds.length > 1 ? 's' : ''}: ${resolvedData.totalPrice.toLocaleString()}
-                    </div>
-                  )}
+                  <div className="text-sm text-slate-600 mb-1">Price</div>
+                  <div className="text-3xl font-bold text-slate-900">
+                    {resolvedData ? `$${resolvedData.totalPrice.toLocaleString()}` : '—'}
+                  </div>
                 </div>
 
                 {vehicle.tags && vehicle.tags.length > 0 && (
