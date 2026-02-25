@@ -61,6 +61,21 @@ export function AdminAuthGuard({ children }: AuthGuardProps) {
     }
   };
 
+  const handleGitHubSignIn = async () => {
+    setSignInError(null);
+    setSigningIn(true);
+    const redirectTo = `${window.location.origin}/#/admin`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: { redirectTo },
+    });
+    if (error) {
+      setSignInError(error.message);
+      setSigningIn(false);
+    }
+    // success redirects away, so no need to unset signingIn
+  };
+
   if (authState === 'loading') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -75,6 +90,20 @@ export function AdminAuthGuard({ children }: AuthGuardProps) {
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm w-full max-w-sm p-8">
           <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1">Admin</p>
           <h1 className="text-xl font-bold text-slate-900 mb-6">Sign in</h1>
+          <button
+            type="button"
+            onClick={handleGitHubSignIn}
+            disabled={signingIn}
+            className="w-full h-10 border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {signingIn ? 'Redirecting...' : 'Sign in with GitHub'}
+          </button>
+          <div className="relative my-4">
+            <div className="border-t border-slate-200" />
+            <span className="absolute left-1/2 -translate-x-1/2 -top-2 bg-white px-2 text-xs text-slate-400">
+              or
+            </span>
+          </div>
           <form onSubmit={handleSignIn} className="space-y-4">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Email</label>
