@@ -1,18 +1,232 @@
-import { useEffect, useState } from 'react';
-import { Trash2, GitCompare, HelpCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { X, Minus, GitCompare, RefreshCw, HelpCircle, ChevronRight } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
+import { VehicleConfigSelection } from '../types/config';
 import { UserPreferences } from '../types';
 import { structuredVehicles } from '../data/structuredVehicles';
-import { GarageItem, getGarageItems, removeGarageItem } from '../lib/session';
-import { resolveConfiguredVehicle } from '../lib/resolveConfiguredVehicle';
+import {
+  GarageItem,
+  getGarageItems,
+  removeGarageItem,
+  upsertGarageItem,
+  doesSavedSelectionMatch,
+} from '../lib/session';
+import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { buildConfigSummary } from '../lib/configSummary';
+import { VehicleConfigurationControls } from './config/VehicleConfigurationControls';
 import { supabase } from '../lib/supabase';
 import { STORAGE_KEYS } from '../lib/storageKeys';
+
+// ─── Profile flyout ───────────────────────────────────────────────────────────
+
+function GarageProfileFlyout({
+  vehicle,
+  savedItem,
+  onClose,
+  onRemoved,
+  onUpdated,
+}: {
+  vehicle: StructuredVehicle;
+  savedItem: GarageItem;
+  onClose: () => void;
+  onRemoved: (vehicleId: string) => void;
+  onUpdated: (vehicleId: string, newSelection: VehicleConfigSelection) => void;
+}) {
+  const [selection, setSelection] = useState<VehicleConfigSelection>(savedItem.selection);
+  const [heroIndex, setHeroIndex] = useState(0);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  const resolvedData: ResolvedVehicle = useMemo(
+    () => resolveConfiguredVehicle(vehicle, selection),
+    [vehicle, selection],
+  );
+
+  const heroSrc =
+    resolvedData.heroImageUrl ??
+    resolvedData.resolvedImages[heroIndex] ??
+    vehicle.images[0] ??
+    null;
+
+  // doesSavedSelectionMatch reads localStorage, which is the source of truth for "saved"
+  const isDirty = !doesSavedSelectionMatch(vehicle.id, selection);
+
+  // Auto-focus the close button when flyout opens
+  useEffect(() => { closeRef.current?.focus(); }, []);
+
+  // Esc closes flyout
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  // Reset hero index when the resolved image gallery changes
+  useEffect(() => { setHeroIndex(0); }, [resolvedData.resolvedImages.join(',')]);
+
+  const handleUpdate = () => {
+    upsertGarageItem(vehicle.id, selection);
+    window.dispatchEvent(new Event('garage-updated'));
+    onUpdated(vehicle.id, selection);
+  };
+
+  const handleRemove = () => {
+    removeGarageItem(vehicle.id);
+    window.dispatchEvent(new Event('garage-updated'));
+    onRemoved(vehicle.id);
+    onClose();
+  };
+
+  const handleCompare = () => {
+    window.dispatchEvent(
+      new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }),
+    );
+  };
+
+  const handleViewProfile = () => {
+    window.dispatchEvent(
+      new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }),
+    );
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${vehicle.year} ${vehicle.make} ${vehicle.model} details`}
+    >
+      {/* Backdrop */}
+      <div className="flex-1 bg-black/40" onClick={onClose} aria-hidden="true" />
+
+      {/* Drawer — slides in from the right */}
+      <div className="w-full max-w-md bg-white shadow-2xl flex flex-col overflow-y-auto">
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 flex-shrink-0">
+          <div className="min-w-0 mr-3">
+            <h2 className="text-base font-bold text-slate-900 truncate">
+              {vehicle.year} {vehicle.make} {vehicle.model}
+            </h2>
+            <p className="text-sm text-slate-500 truncate">
+              {resolvedData.selectedTrim.name}
+            </p>
+          </div>
+          <button
+            ref={closeRef}
+            onClick={onClose}
+            aria-label="Close"
+            className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Hero image */}
+        <div className="flex-shrink-0">
+          <div className="aspect-[16/9] bg-slate-100 overflow-hidden">
+            {heroSrc ? (
+              <img
+                src={heroSrc}
+                alt={`${vehicle.make} ${vehicle.model}`}
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-400 text-sm">
+                No Image Available
+              </div>
+            )}
+          </div>
+          {resolvedData.resolvedImages.length > 1 && (
+            <div className="flex gap-1.5 px-5 py-2 overflow-x-auto bg-slate-50 border-b border-slate-100">
+              {resolvedData.resolvedImages.map((src, i) => (
+                <button
+                  key={i}
+                  onClick={() => setHeroIndex(i)}
+                  className={`flex-shrink-0 w-12 h-8 rounded overflow-hidden border-2 transition-all ${
+                    i === heroIndex ? 'border-slate-900' : 'border-transparent hover:border-slate-300'
+                  }`}
+                >
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="px-5 py-4 border-b border-slate-100 flex-shrink-0">
+          <div className="text-xs text-slate-500 mb-0.5">Price</div>
+          <div className="text-2xl font-bold text-slate-900">
+            ${resolvedData.totalPrice.toLocaleString()}
+          </div>
+        </div>
+
+        {/* Configuration controls */}
+        <div className="px-5 py-4 flex-1">
+          <p className="text-xs text-slate-500 uppercase tracking-wide font-medium mb-3">
+            Trim &amp; Options
+          </p>
+          <VehicleConfigurationControls
+            vehicle={vehicle}
+            selection={selection}
+            onChange={(patch) => setSelection(prev => ({ ...prev, ...patch }))}
+            onHeroReset={() => setHeroIndex(0)}
+            mode="panel"
+            showPacks={true}
+            showConfigGroups={true}
+            showDescriptions={true}
+          />
+        </div>
+
+        {/* Actions */}
+        <div className="px-5 py-4 border-t border-slate-200 flex-shrink-0 space-y-2">
+          <button
+            onClick={handleCompare}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 text-sm font-medium transition-colors"
+          >
+            <GitCompare className="w-4 h-4" />
+            Add to Compare
+          </button>
+          <button
+            onClick={handleUpdate}
+            disabled={!isDirty}
+            aria-disabled={!isDirty}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+              isDirty
+                ? 'border-slate-700 text-slate-800 bg-white hover:bg-slate-50'
+                : 'border-slate-200 text-slate-400 bg-white cursor-not-allowed'
+            }`}
+          >
+            <RefreshCw className="w-4 h-4" />
+            Update Garage
+          </button>
+          <button
+            onClick={handleRemove}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-red-300 text-red-600 bg-white hover:bg-red-50 text-sm font-medium transition-colors"
+          >
+            <Minus className="w-4 h-4" />
+            Remove from Garage
+          </button>
+          <button
+            onClick={handleViewProfile}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-slate-500 hover:text-slate-700 text-sm transition-colors"
+          >
+            View full profile
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Garage page ──────────────────────────────────────────────────────────────
 
 export default function GaragePage() {
   const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
   const [garageItemsList, setGarageItemsList] = useState<GarageItem[]>([]);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [flyoutVehicleId, setFlyoutVehicleId] = useState<string | null>(null);
   const [showQuestions, setShowQuestions] = useState(false);
   const [preferences, setPreferences] = useState<Partial<UserPreferences>>({
     monthly_kms: undefined,
@@ -35,48 +249,44 @@ export default function GaragePage() {
 
   const loadPreferences = () => {
     const stored = localStorage.getItem(STORAGE_KEYS.userPreferences);
-    if (stored) {
-      setPreferences(JSON.parse(stored));
-    }
+    if (stored) setPreferences(JSON.parse(stored));
   };
 
   const savePreferences = async () => {
     localStorage.setItem(STORAGE_KEYS.userPreferences, JSON.stringify(preferences));
-
     const sessionId = localStorage.getItem(STORAGE_KEYS.sessionId);
     if (sessionId) {
-      await supabase.from('user_preferences').upsert({
-        session_id: sessionId,
-        ...preferences,
-      });
+      await supabase.from('user_preferences').upsert({ session_id: sessionId, ...preferences });
     }
-
     setShowQuestions(false);
     alert('Preferences saved!');
   };
 
   const handleRemove = (vehicleId: string) => {
-    removeGarageItem(vehicleId);
+    // Note: the flyout also calls removeGarageItem and closes itself before calling this.
+    // This callback only updates the parent list state.
     setGarageItemsList(prev => prev.filter(item => item.vehicleId !== vehicleId));
     setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-    setSelectedIds(prev => prev.filter(id => id !== vehicleId));
-    window.dispatchEvent(new Event('garage-updated'));
+    if (flyoutVehicleId === vehicleId) setFlyoutVehicleId(null);
   };
 
-  const toggleSelect = (vehicleId: string) => {
-    setSelectedIds(prev =>
-      prev.includes(vehicleId)
-        ? prev.filter(id => id !== vehicleId)
-        : [...prev, vehicleId]
+  const handleUpdated = (vehicleId: string, newSelection: VehicleConfigSelection) => {
+    // Sync the in-memory garage list so the card's summary/price updates immediately.
+    setGarageItemsList(prev =>
+      prev.map(item =>
+        item.vehicleId === vehicleId
+          ? { ...item, selection: newSelection, updatedAt: Date.now() }
+          : item,
+      ),
     );
   };
 
-  const handleCompare = () => {
-    if (selectedIds.length === 2) {
-      localStorage.setItem(STORAGE_KEYS.compareList, JSON.stringify(selectedIds));
-      window.dispatchEvent(new Event('navigate-compare'));
-    }
-  };
+  const flyoutVehicle = flyoutVehicleId
+    ? (vehicles.find(v => v.id === flyoutVehicleId) ?? null)
+    : null;
+  const flyoutSavedItem = flyoutVehicleId
+    ? (garageItemsList.find(i => i.vehicleId === flyoutVehicleId) ?? null)
+    : null;
 
   if (vehicles.length === 0) {
     return (
@@ -109,9 +319,10 @@ export default function GaragePage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-4xl font-bold text-slate-900 mb-2">Your Garage</h1>
-            <p className="text-slate-600">{vehicles.length} {vehicles.length === 1 ? 'vehicle' : 'vehicles'} saved</p>
+            <p className="text-slate-600">
+              {vehicles.length} {vehicles.length === 1 ? 'vehicle' : 'vehicles'} saved
+            </p>
           </div>
-
           <button
             onClick={() => setShowQuestions(!showQuestions)}
             className="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
@@ -138,11 +349,8 @@ export default function GaragePage() {
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
-                  Driving type
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Driving type</label>
                 <select
                   value={preferences.driving_type}
                   onChange={(e) => setPreferences({ ...preferences, driving_type: e.target.value })}
@@ -153,7 +361,6 @@ export default function GaragePage() {
                   <option value="mixed">Mixed</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   Can you charge a car at home?
@@ -179,7 +386,6 @@ export default function GaragePage() {
                   </label>
                 </div>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   What matters more to you?
@@ -195,7 +401,6 @@ export default function GaragePage() {
                   <option value="luxury">Luxury</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
                   When do you plan on securing a car?
@@ -212,7 +417,6 @@ export default function GaragePage() {
                 </select>
               </div>
             </div>
-
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowQuestions(false)}
@@ -230,42 +434,32 @@ export default function GaragePage() {
           </div>
         )}
 
-        {selectedIds.length > 0 && (
-          <div className="bg-slate-900 text-white rounded-lg p-4 mb-6 flex items-center justify-between">
-            <span>{selectedIds.length} selected</span>
-            <button
-              onClick={handleCompare}
-              disabled={selectedIds.length !== 2}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedIds.length === 2
-                  ? 'bg-white text-slate-900 hover:bg-slate-100'
-                  : 'bg-white/20 text-white/50 cursor-not-allowed'
-              }`}
-            >
-              <GitCompare className="w-4 h-4" />
-              Compare Selected
-            </button>
-          </div>
-        )}
-
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {vehicles.map((vehicle) => {
             const garageItem = garageItemsList.find(i => i.vehicleId === vehicle.id);
-            const itemSelection = garageItem?.selection ?? { variantId: null, subvariantId: null, trimId: null, packIds: [] };
+            const itemSelection = garageItem?.selection ?? {
+              variantId: null,
+              subvariantId: null,
+              trimId: vehicle.trims[0]?.id ?? null,
+              packIds: [],
+              selectedOptionsByGroup: {},
+            };
             const resolved = resolveConfiguredVehicle(vehicle, itemSelection);
-            const heroUrl = resolved.heroImageUrl ?? resolved.resolvedImages[0] ?? vehicle.images[0] ?? null;
+            const heroUrl =
+              resolved.heroImageUrl ??
+              resolved.resolvedImages[0] ??
+              vehicle.images[0] ??
+              null;
             const configSummary = buildConfigSummary(vehicle, itemSelection);
-            const isSelected = selectedIds.includes(vehicle.id);
 
             return (
-              <div
+              <button
                 key={vehicle.id}
-                className={`bg-white rounded-lg border-2 overflow-hidden transition-all cursor-pointer ${
-                  isSelected ? 'border-slate-900 shadow-lg' : 'border-slate-200 hover:border-slate-300'
-                }`}
-                onClick={() => toggleSelect(vehicle.id)}
+                type="button"
+                onClick={() => setFlyoutVehicleId(vehicle.id)}
+                className="text-left bg-white rounded-lg border border-slate-200 overflow-hidden transition-all hover:border-slate-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
               >
-                <div className="aspect-[16/9] bg-slate-100 relative">
+                <div className="aspect-[16/9] bg-slate-100 relative overflow-hidden">
                   {heroUrl ? (
                     <img
                       src={heroUrl}
@@ -278,13 +472,6 @@ export default function GaragePage() {
                       No Image
                     </div>
                   )}
-                  {isSelected && (
-                    <div className="absolute top-3 right-3 w-6 h-6 bg-slate-900 rounded-full flex items-center justify-center">
-                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  )}
                 </div>
 
                 <div className="p-5">
@@ -294,43 +481,29 @@ export default function GaragePage() {
                   {configSummary && (
                     <p className="text-xs text-slate-500 mb-2 truncate">{configSummary}</p>
                   )}
-
                   {vehicle.aiSummary && (
                     <p className="text-sm text-slate-600 mb-3 line-clamp-2">{vehicle.aiSummary}</p>
                   )}
-
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-xl font-bold text-slate-900">
-                      ${resolved.totalPrice.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
-                      }}
-                      className="flex-1 px-3 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 text-sm font-medium"
-                    >
-                      View Details
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemove(vehicle.id);
-                      }}
-                      className="px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <p className="text-xl font-bold text-slate-900">
+                    ${resolved.totalPrice.toLocaleString()}
+                  </p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
+
+      {/* Profile flyout */}
+      {flyoutVehicle && flyoutSavedItem && (
+        <GarageProfileFlyout
+          vehicle={flyoutVehicle}
+          savedItem={flyoutSavedItem}
+          onClose={() => setFlyoutVehicleId(null)}
+          onRemoved={handleRemove}
+          onUpdated={handleUpdated}
+        />
+      )}
     </div>
   );
 }
