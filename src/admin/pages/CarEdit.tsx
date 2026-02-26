@@ -98,6 +98,13 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
   const [variants, setVariants] = useState<AdminVehicle[]>([]);
   const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
 
+  // Add pack dialog state
+  const [showAddPack, setShowAddPack] = useState(false);
+  const [addPackCode, setAddPackCode] = useState('');
+  const [addPackName, setAddPackName] = useState('');
+  const [addPackError, setAddPackError] = useState<string | null>(null);
+  const [addPackSaving, setAddPackSaving] = useState(false);
+
   const [showResolved, setShowResolved] = useState(false);
   const resolved = baseVehicle && form.row_type === 'VARIANT'
     ? resolveAdminVehicle(baseVehicle, form as AdminVehicle)
@@ -217,6 +224,54 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
     }
   };
 
+  // ── Add pack ──────────────────────────────────────────────────────────────
+  const handleAddPack = async () => {
+    if (!addPackCode.trim()) return;
+    setAddPackError(null);
+    setAddPackSaving(true);
+    try {
+      const code = addPackCode.trim();
+      const newId = `${form.id}${code}`;
+      await createVehicle({
+        id: newId,
+        row_type: 'VARIANT',
+        base_id: form.id,
+        variant_code: code,
+        status: 'draft',
+        archived_at: null,
+        last_import_id: null,
+        // Copy identity fields from base so DB constraints are satisfied;
+        // resolver will use base values at render time.
+        make: form.make,
+        model: form.model,
+        year: form.year,
+        body_type: form.body_type,
+        price_aud: null,
+        cover_image_url: null,
+        gallery_image_urls: [],
+        image_source: null,
+        license_note: null,
+        specs: {
+          ...Object.fromEntries(SPEC_COLUMNS.map((k) => [k, null])),
+          admin_variant_kind: 'pack',
+          pack_name: addPackName.trim() || null,
+        },
+      });
+      setShowAddPack(false);
+      setAddPackCode('');
+      setAddPackName('');
+      onNavigate(`/admin/cars/${newId}`);
+    } catch (e: unknown) {
+      setAddPackError(String(e));
+    } finally {
+      setAddPackSaving(false);
+    }
+  };
+
+  // ── Derived: split variants into packs and non-packs ─────────────────────
+  const packRows = variants.filter((v) => v.specs?.['admin_variant_kind'] === 'pack');
+  const nonPackRows = variants.filter((v) => v.specs?.['admin_variant_kind'] !== 'pack');
+
   // ─────────────────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -314,6 +369,31 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
                 className={INPUT}
                 required
               />
+            </Field>
+          )}
+          {form.row_type === 'VARIANT' && (
+            <Field label="Variant kind">
+              <select
+                value={form.specs['admin_variant_kind'] ?? 'variant'}
+                onChange={(e) => setSpec('admin_variant_kind', e.target.value)}
+                className={INPUT}
+              >
+                <option value="variant">Variant</option>
+                <option value="pack">Pack</option>
+              </select>
+              <p className="text-xs text-slate-400 mt-1">Pack rows appear in Option Packs; Variant rows appear in Variants.</p>
+            </Field>
+          )}
+          {form.row_type === 'VARIANT' && form.specs['admin_variant_kind'] === 'pack' && (
+            <Field label="Pack name">
+              <input
+                type="text"
+                value={form.specs['pack_name'] ?? ''}
+                onChange={(e) => setSpec('pack_name', e.target.value)}
+                placeholder="M Sport Package"
+                className={INPUT}
+              />
+              <p className="text-xs text-slate-400 mt-1">Display name shown in Option Packs list. Falls back to variant code.</p>
             </Field>
           )}
           <Field label="ID">
@@ -455,7 +535,88 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
         </div>
       </form>
 
-      {/* ── Variants section (BASE only) ─────────────────────────────────── */}
+      {/* ── Option Packs section (BASE only) ────────────────────────────── */}
+      {!isNew && form.row_type === 'BASE' && (
+        <div className="mt-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-slate-900">Option Packs</h2>
+            <button
+              onClick={() => { setAddPackCode(''); setAddPackName(''); setAddPackError(null); setShowAddPack(true); }}
+              className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add pack
+            </button>
+          </div>
+
+          {packRows.length === 0 ? (
+            <p className="text-sm text-slate-400 py-4 text-center bg-white border border-slate-200 rounded-xl">No packs</p>
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Code</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Name</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Price</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Updated</th>
+                    <th className="px-4 py-2.5" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {packRows.map((p) => {
+                    const packName = p.specs['pack_name'] || p.license_note || p.variant_code || p.id;
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 text-xs font-mono text-slate-600">{p.variant_code}</td>
+                        <td className="px-4 py-3 text-xs text-slate-700">{packName}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">
+                          {p.price_aud != null ? `$${p.price_aud.toLocaleString()}` : <span className="text-slate-400">Inherited</span>}
+                        </td>
+                        <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
+                        <td className="px-4 py-3 text-xs text-slate-400">
+                          {new Date(p.updated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1 justify-end">
+                            <button
+                              onClick={() => onNavigate(`/admin/cars/${p.id}`)}
+                              title="Edit"
+                              className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            {p.status === 'archived' ? (
+                              <button
+                                onClick={() => handleRestoreVariant(p.id)}
+                                title="Restore"
+                                className="p-1.5 rounded border border-slate-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmArchiveId(p.id)}
+                                title="Archive"
+                                className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+                              >
+                                <Archive className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Variants section (BASE only, excludes packs) ──────────────────── */}
       {!isNew && form.row_type === 'BASE' && (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
@@ -469,7 +630,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
             </button>
           </div>
 
-          {variants.length === 0 ? (
+          {nonPackRows.length === 0 ? (
             <p className="text-sm text-slate-400 py-4 text-center bg-white border border-slate-200 rounded-xl">No variants</p>
           ) : (
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -485,7 +646,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {variants.map((v) => (
+                  {nonPackRows.map((v) => (
                     <tr key={v.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs text-slate-600">{v.id}</td>
                       <td className="px-4 py-3 text-xs text-slate-600">{v.variant_code}</td>
@@ -535,13 +696,73 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
 
       {confirmArchiveId && (
         <ConfirmDialog
-          title="Archive variant?"
-          message="The variant will be moved to the graveyard. You can restore it at any time."
+          title="Archive?"
+          message="The row will be moved to the graveyard. You can restore it at any time."
           confirmLabel="Archive"
           confirmDestructive
           onConfirm={handleArchiveVariant}
           onCancel={() => setConfirmArchiveId(null)}
         />
+      )}
+
+      {/* ── Add pack dialog ───────────────────────────────────────────────── */}
+      {showAddPack && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddPack(false)} aria-hidden="true" />
+          <div className="relative bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-base font-semibold text-slate-900 mb-1">Add option pack</h2>
+            <p className="text-sm text-slate-500 mb-4">
+              Creates a VARIANT row with <code className="text-xs bg-slate-100 px-1 rounded">admin_variant_kind=pack</code>. The variant code is appended to the base ID.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Variant code <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={addPackCode}
+                  onChange={(e) => { setAddPackCode(e.target.value); setAddPackError(null); }}
+                  placeholder="_msport"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  autoFocus
+                />
+                {addPackCode.trim() && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    ID: <code className="text-xs">{form.id}{addPackCode.trim()}</code>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Pack name</label>
+                <input
+                  type="text"
+                  value={addPackName}
+                  onChange={(e) => setAddPackName(e.target.value)}
+                  placeholder="M Sport Package"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                />
+              </div>
+            </div>
+            {addPackError && <p className="text-xs text-red-600 mt-3">{addPackError}</p>}
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowAddPack(false)}
+                disabled={addPackSaving}
+                className="h-9 px-4 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddPack}
+                disabled={!addPackCode.trim() || addPackSaving}
+                className="h-9 px-4 text-sm rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {addPackSaving ? 'Creating…' : 'Create & edit'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

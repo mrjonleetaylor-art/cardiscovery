@@ -215,7 +215,16 @@ export function parseCsv(text: string): CsvParseResult {
     const specs: Record<string, string | null> = {};
     for (const key of SPEC_COLUMNS) {
       const val = v(raw, key);
-      specs[key] = val || null;
+      if (key === 'admin_variant_kind') {
+        // Accept 'pack', 'variant', or blank (blank → 'variant')
+        if (val && val !== 'pack' && val !== 'variant') {
+          rowErrors.push(rowErr(rowNum, id || null, key,
+            `admin_variant_kind must be 'pack', 'variant', or blank, got "${val}"`));
+        }
+        specs[key] = val === 'pack' ? 'pack' : 'variant';
+      } else {
+        specs[key] = val || null;
+      }
     }
 
     // Determine if every non-required field is blank (used for skipping no-op rows)

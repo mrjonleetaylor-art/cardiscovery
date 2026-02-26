@@ -351,13 +351,13 @@ export function CarsList({ onNavigate }: CarsListProps) {
                   <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${v.row_type === 'VARIANT' ? 'bg-slate-50/40' : ''}`}>
                     {showVariants && (
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                          v.row_type === 'BASE'
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'bg-blue-50 text-blue-700'
-                        }`}>
-                          {v.row_type}
-                        </span>
+                        {v.row_type === 'BASE' ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">BASE</span>
+                        ) : v.specs?.['admin_variant_kind'] === 'pack' ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">Pack</span>
+                        ) : (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Variant</span>
+                        )}
                       </td>
                     )}
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">

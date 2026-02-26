@@ -23,7 +23,7 @@ export interface SpecColumnDef {
   /** Dot-path into StructuredSpecs (e.g. "overview.fuelType") or top-level key. */
   path: string;
   /** Form section grouping. */
-  category: 'overview' | 'efficiency' | 'performance' | 'connectivity' | 'safety' | 'narrative';
+  category: 'overview' | 'efficiency' | 'performance' | 'connectivity' | 'safety' | 'narrative' | 'admin';
   /** True if the field should render as a textarea in the admin form. */
   multiline?: boolean;
 }
@@ -83,6 +83,10 @@ export const SPEC_COLUMN_DEFS: SpecColumnDef[] = [
   { key: 'trade_offs',          label: 'Trade-offs (pipe-separated)',path: 'trade_offs',          category: 'narrative' },
   { key: 'positioning_summary', label: 'Positioning Summary',        path: 'positioning_summary', category: 'narrative', multiline: true },
   { key: 'tags',                label: 'Tags (pipe-separated)',      path: 'tags',                category: 'narrative' },
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
+  { key: 'admin_variant_kind', label: 'Variant Kind',  path: 'admin_variant_kind', category: 'admin' },
+  { key: 'pack_name',          label: 'Pack Name',     path: 'pack_name',          category: 'admin' },
 ] as const;
 
 /**

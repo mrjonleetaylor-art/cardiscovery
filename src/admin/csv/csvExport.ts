@@ -69,8 +69,13 @@ function buildRow(vehicle: AdminVehicle): string {
         break;
 
       default:
-        // Spec / narrative columns
-        cells.push(csvCell(vehicle.specs[col] ?? ''));
+        // Spec / narrative / admin columns
+        // admin_variant_kind defaults to 'variant' when not set, so blank in CSV reads as 'variant'
+        if (col === 'admin_variant_kind') {
+          cells.push(csvCell(vehicle.specs[col] ?? 'variant'));
+        } else {
+          cells.push(csvCell(vehicle.specs[col] ?? ''));
+        }
         break;
     }
   }
