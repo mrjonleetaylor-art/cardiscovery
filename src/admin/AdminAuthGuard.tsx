@@ -64,16 +64,19 @@ export function AdminAuthGuard({ children }: AuthGuardProps) {
   const handleGitHubSignIn = async () => {
     setSignInError(null);
     setSigningIn(true);
-    const redirectTo = `${window.location.origin}/#/admin`;
-    const { error } = await supabase.auth.signInWithOAuth({
+    const redirectTo = `${window.location.origin}/auth/callback`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'github',
       options: { redirectTo },
     });
     if (error) {
       setSignInError(error.message);
       setSigningIn(false);
+      return;
     }
-    // success redirects away, so no need to unset signingIn
+    if (data?.url) {
+      window.location.assign(data.url);
+    }
   };
 
   if (authState === 'loading') {
