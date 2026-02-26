@@ -2,7 +2,7 @@
  * Canonical resolver for admin vehicles.
  *
  * resolveAdminVehicle(base, variant?) → ResolvedAdminVehicle
- *   - For every field: if variant value is null/blank → use base value.
+ *   - For every spec field: if variant value is null/blank → use base value.
  *   - For gallery_image_urls: if variant array is empty → inherit base gallery.
  *   - For price_aud: if variant is null → inherit base price.
  *
@@ -21,7 +21,8 @@ import type { StructuredVehicle, StructuredSpecs } from '../../types/specs';
 
 /**
  * Merges base + variant into a fully populated AdminVehicle.
- * VARIANT null/blank fields inherit the BASE value.
+ * VARIANT null fields inherit the BASE value.
+ * VARIANT empty arrays ([]) are treated as "explicit none" — do not inherit.
  */
 export function resolveAdminVehicle(
   base: AdminVehicle,

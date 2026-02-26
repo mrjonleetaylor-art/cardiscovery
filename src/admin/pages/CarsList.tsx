@@ -299,7 +299,13 @@ export function CarsList({ onNavigate }: CarsListProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                {showVariants && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
+                )}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">ID</th>
+                {showVariants && (
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Base / Code</th>
+                )}
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Make</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Model</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</th>
@@ -313,11 +319,11 @@ export function CarsList({ onNavigate }: CarsListProps) {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">Loading…</td>
+                  <td colSpan={showVariants ? 11 : 9} className="px-4 py-8 text-center text-sm text-slate-400">Loading…</td>
                 </tr>
               ) : vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center">
+                  <td colSpan={showVariants ? 11 : 9} className="px-4 py-12 text-center">
                     {statusFilter === 'active' && !showVariants ? (
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700">No vehicles yet</p>
@@ -343,15 +349,34 @@ export function CarsList({ onNavigate }: CarsListProps) {
               ) : (
                 vehicles.map((v) => (
                   <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${v.row_type === 'VARIANT' ? 'bg-slate-50/40' : ''}`}>
+                    {showVariants && (
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                          v.row_type === 'BASE'
+                            ? 'bg-slate-100 text-slate-700'
+                            : 'bg-blue-50 text-blue-700'
+                        }`}>
+                          {v.row_type}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                      {v.row_type === 'VARIANT' && (
-                        <span className="text-slate-400 mr-1">↳</span>
-                      )}
                       {v.id}
-                      {v.row_type === 'VARIANT' && (
-                        <span className="ml-1 text-xs text-slate-400">(variant)</span>
-                      )}
                     </td>
+                    {showVariants && (
+                      <td className="px-4 py-3 text-xs text-slate-500 font-mono">
+                        {v.row_type === 'VARIANT' ? (
+                          <span>
+                            <span className="text-slate-400">{v.base_id}</span>
+                            {v.variant_code && (
+                              <span className="ml-1 text-blue-600 font-semibold">+{v.variant_code}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-slate-900">{v.make}</td>
                     <td className="px-4 py-3 text-slate-900">{v.model}</td>
                     <td className="px-4 py-3 text-slate-600">{v.year}</td>

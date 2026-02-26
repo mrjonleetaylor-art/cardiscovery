@@ -224,6 +224,7 @@ export async function duplicateVehicle(
 /**
  * Insert a new vehicle from an import row.
  * All fields written as-is; blank specs stored as null.
+ * Pack fields are nullable so null is written directly.
  */
 export async function importInsert(
   row: AdminVehicle,
@@ -293,6 +294,7 @@ export async function importUpsertVariant(
   isNew: boolean,
 ): Promise<void> {
   const ts = now();
+
   if (isNew) {
     await supabase.from('admin_vehicles').insert({
       ...row,
@@ -301,9 +303,10 @@ export async function importUpsertVariant(
       updated_at: ts,
     });
   } else {
-    await supabase
-      .from('admin_vehicles')
-      .update({ ...row, last_import_id: importId, updated_at: ts })
-      .eq('id', row.id);
+    await supabase.from('admin_vehicles').update({
+      ...row,
+      last_import_id: importId,
+      updated_at: ts,
+    }).eq('id', row.id);
   }
 }

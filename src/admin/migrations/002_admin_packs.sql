@@ -1,0 +1,9 @@
+-- ============================================================
+-- Migration 002: No-op
+--
+-- Pack metadata columns (allowed_pack_codes, selected_pack_codes, etc.)
+-- were removed. Packs are represented purely as VARIANT rows with no
+-- additional columns beyond the standard BASE/VARIANT schema.
+--
+-- No schema changes required from 001_admin_tables.sql.
+-- ============================================================

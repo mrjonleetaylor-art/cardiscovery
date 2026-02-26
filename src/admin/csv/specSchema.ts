@@ -85,9 +85,6 @@ export const SPEC_COLUMN_DEFS: SpecColumnDef[] = [
   { key: 'tags',                label: 'Tags (pipe-separated)',      path: 'tags',                category: 'narrative' },
 ] as const;
 
-/** Spec column keys in declared order. */
-export const SPEC_COLUMNS = SPEC_COLUMN_DEFS.map((d) => d.key);
-
 /**
  * Required identity CSV columns (must appear in every file).
  * NOTE: `id` is present but may be blank — system derives it if so.
@@ -108,6 +105,9 @@ export const REQUIRED_COLUMNS = [
   'image_source',
   'license_note',
 ] as const;
+
+/** Spec column keys in declared order. */
+export const SPEC_COLUMNS = SPEC_COLUMN_DEFS.map((d) => d.key);
 
 /** Complete ordered column list used for the CSV header row. */
 export const ALL_COLUMNS = [...REQUIRED_COLUMNS, ...SPEC_COLUMNS] as const;

@@ -67,6 +67,7 @@ function buildRow(vehicle: AdminVehicle): string {
       case 'license_note':
         cells.push(csvCell(vehicle.license_note ?? ''));
         break;
+
       default:
         // Spec / narrative columns
         cells.push(csvCell(vehicle.specs[col] ?? ''));
