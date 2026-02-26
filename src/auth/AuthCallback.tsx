@@ -24,8 +24,7 @@ export function AuthCallback() {
           setErrorMessage(error?.message ?? 'Authentication failed. No session returned.');
           return;
         }
-        // Clean the URL and navigate — replace so Back doesn't return to callback
-        window.location.replace('/#/admin');
+        window.location.href = `${window.location.origin}/#/admin`;
       });
   }, []);
 
