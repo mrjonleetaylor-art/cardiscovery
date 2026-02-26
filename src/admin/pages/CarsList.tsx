@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown } from 'lucide-react';
 import { AdminVehicle, AdminVehicleStatus, ImportResult } from '../adminTypes';
 import { listVehicles, archiveVehicle, restoreVehicle, duplicateVehicle } from '../lib/adminVehicles';
+import { seedAdminFromDataset } from '../lib/seedAdminFromDataset';
 import { buildCsvContent, downloadCsv, sortVehiclesForExport } from '../csv/csvExport';
 import { parseCsv, applyImport } from '../csv/csvImport';
 import { StatusBadge } from '../components/StatusBadge';
@@ -36,6 +37,9 @@ export function CarsList({ onNavigate }: CarsListProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [seeding, setSeeding] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -157,6 +161,20 @@ export function CarsList({ onNavigate }: CarsListProps) {
       load();
     } catch (e: unknown) {
       setDuplicateError(String(e));
+    }
+  };
+
+  // ── Seed from dataset ─────────────────────────────────────────────────────
+  const handleSeedFromDataset = async () => {
+    setSeeding(true);
+    setSeedError(null);
+    try {
+      await seedAdminFromDataset();
+      load();
+    } catch (e) {
+      setSeedError(String(e));
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -299,7 +317,28 @@ export function CarsList({ onNavigate }: CarsListProps) {
                 </tr>
               ) : vehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">No vehicles found</td>
+                  <td colSpan={9} className="px-4 py-12 text-center">
+                    {statusFilter === 'active' && !showVariants ? (
+                      <div className="space-y-3">
+                        <p className="text-sm font-medium text-slate-700">No vehicles yet</p>
+                        <p className="text-xs text-slate-400">Import the current site dataset to get started.</p>
+                        {seedError && (
+                          <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 inline-block">{seedError}</p>
+                        )}
+                        <div>
+                          <button
+                            onClick={handleSeedFromDataset}
+                            disabled={seeding}
+                            className="h-9 px-4 rounded-lg bg-slate-900 text-white text-xs font-medium hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                          >
+                            {seeding ? 'Importing…' : 'Import current site cars'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">No vehicles found</span>
+                    )}
+                  </td>
                 </tr>
               ) : (
                 vehicles.map((v) => (
