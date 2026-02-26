@@ -7,7 +7,7 @@ import Comparisons from './components/Comparisons';
 import GaragePage from './components/GaragePage';
 import { seedDatabase } from './lib/seedDatabase';
 import { AdminApp } from './admin/AdminApp';
-import { AuthCallback } from './auth/AuthCallback';
+console.log("BUILD_COMMIT", import.meta.env.VITE_BUILD_COMMIT);
 
 type CarFinderWindowEventMap = {
   'garage-updated': Event;
@@ -91,11 +91,6 @@ function App() {
     window.addEventListener('hashchange', handler);
     return () => window.removeEventListener('hashchange', handler);
   }, []);
-
-  // OAuth callback: dedicated path so Supabase gets a clean URL with no hash conflict
-  if (window.location.pathname === '/auth/callback') {
-    return <AuthCallback />;
-  }
 
   if (isAdmin) {
     // Admin runs inside its own auth guard — no AuthProvider overlap needed
