@@ -1,71 +1,65 @@
 /**
- * AuthCallback — rendered at /auth/callback after GitHub OAuth.
+ * AuthCallback — rendered at /auth/callback after GitHub OAuth (PKCE flow).
  *
- * With PKCE flow, Supabase returns ?code=… in the query string.
- * The Supabase client (detectSessionInUrl: true) automatically exchanges
- * the code for a session when initialised. This component waits for that
- * exchange to complete, then navigates to /#/admin.
+ * GitHub returns ?code=… in the query string. We call exchangeCodeForSession
+ * explicitly rather than relying on detectSessionInUrl, which avoids race
+ * conditions between Supabase's internal exchange and our own listener.
  *
- * window.location.replace('/#/admin') is intentional — it replaces the
- * /auth/callback history entry so the user can't "back" into the callback URL.
+ * On success  → window.location.replace('/#/admin')
+ * On failure  → show error + manual link back to sign-in
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export function AuthCallback() {
-  const [status, setStatus] = useState<'waiting' | 'error'>('waiting');
+  const [status, setStatus] = useState<'exchanging' | 'error'>('exchanging');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const exchanged = useRef(false); // guard against React StrictMode double-invoke
 
   useEffect(() => {
-    let done = false;
+    if (exchanged.current) return;
+    exchanged.current = true;
 
-    function goToAdmin() {
-      if (done) return;
-      done = true;
-      // Clean the URL (removes ?code=… or #access_token=…) then navigate
-      window.location.replace('/#/admin');
-    }
-
-    // Fast path: session may already be established by the time we mount
-    // (Supabase exchanges the code synchronously on client init when
-    // detectSessionInUrl is true and the URL contains ?code=…)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        goToAdmin();
-      }
-    });
-
-    // Slow path: listen for the SIGNED_IN event fired after async exchange
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
-          goToAdmin();
+    supabase.auth
+      .exchangeCodeForSession(window.location.href)
+      .then(({ data, error }) => {
+        if (error || !data.session) {
+          setErrorMessage(error?.message ?? 'Authentication failed. No session returned.');
+          setStatus('error');
+          return;
         }
-        if (event === 'SIGNED_OUT') {
-          // Exchange failed or user is not authenticated — go to sign-in
-          goToAdmin();
-        }
-      },
-    );
-
-    // Timeout safety net — if neither fires within 8 s, go anyway
-    const timeout = setTimeout(() => {
-      setStatus('error');
-      goToAdmin();
-    }, 8000);
-
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
+        // Session established — replace history so Back doesn't return to callback
+        window.location.replace('/#/admin');
+      });
   }, []);
+
+  if (status === 'error') {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm w-full max-w-sm p-8 text-center">
+          <h1 className="text-lg font-bold text-slate-900 mb-2">Sign-in failed</h1>
+          <p className="text-sm text-slate-500 mb-1">Could not complete authentication.</p>
+          {errorMessage && (
+            <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-6 text-left">
+              {errorMessage}
+            </p>
+          )}
+          <a
+            href="/#/admin"
+            className="text-sm text-slate-500 hover:text-slate-700 underline"
+          >
+            Return to sign in
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center">
       <div className="text-center">
-        <p className="text-sm font-medium text-slate-700">
-          {status === 'waiting' ? 'Signing you in…' : 'Redirecting…'}
-        </p>
+        <p className="text-sm font-medium text-slate-700">Signing you in…</p>
         <p className="text-xs text-slate-400 mt-1">Please wait</p>
       </div>
     </div>
