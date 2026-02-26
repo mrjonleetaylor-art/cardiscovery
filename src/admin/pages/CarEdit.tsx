@@ -317,6 +317,18 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
           </button>
         )}
         {!isNew && (
+          <button
+            onClick={() => onNavigate(
+              `/admin/preview/${form.row_type === 'BASE' ? form.id : form.base_id}`
+            )}
+            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+            title="Preview in public Profile UI"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Preview
+          </button>
+        )}
+        {!isNew && (
           <StatusBadge status={form.status} />
         )}
       </div>

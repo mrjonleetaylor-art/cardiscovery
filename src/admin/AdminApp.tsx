@@ -18,6 +18,7 @@ import { AdminLayout } from './components/AdminLayout';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { CarsList } from './pages/CarsList';
 import { CarEdit } from './pages/CarEdit';
+import { AdminPreview } from './pages/AdminPreview';
 
 function getAdminPath(): string {
   const hash = window.location.hash;
@@ -44,6 +45,12 @@ function AdminRouter() {
       navigate('/admin/cars');
     }
   }, [path]);
+
+  // Preview route is full-page — rendered without AdminLayout sidebar
+  const previewMatch = path.match(/^\/admin\/preview\/(.+)$/);
+  if (previewMatch) {
+    return <AdminPreview baseId={previewMatch[1]} onNavigate={navigate} />;
+  }
 
   const renderPage = () => {
     if (path === '/admin/cars') {

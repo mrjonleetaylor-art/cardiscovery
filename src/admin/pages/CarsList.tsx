@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown } from 'lucide-react';
+import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown, Eye } from 'lucide-react';
 import { AdminVehicle, AdminVehicleStatus, ImportResult } from '../adminTypes';
 import { listVehicles, archiveVehicle, restoreVehicle, duplicateVehicle } from '../lib/adminVehicles';
 import { seedAdminFromDataset } from '../lib/seedAdminFromDataset';
@@ -396,6 +396,13 @@ export function CarsList({ onNavigate }: CarsListProps) {
                           className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                         >
                           <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => onNavigate(`/admin/preview/${v.row_type === 'BASE' ? v.id : v.base_id}`)}
+                          title="Preview"
+                          className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDuplicate(v)}
