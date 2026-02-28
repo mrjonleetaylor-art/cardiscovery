@@ -23,4 +23,4 @@ dist-ssr
 .env
 .vercel
 
-supabase/.temp/
+supabase/.temp/.env.backup
