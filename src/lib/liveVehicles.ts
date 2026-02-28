@@ -182,6 +182,8 @@ function runLegacyVariantSanityCheck(): void {
 export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
   runLegacyVariantSanityCheck();
 
+  console.log('[liveVehicles] fetching...');
+
   const [baseResp, variantResp] = await Promise.all([
     supabase
       .from('admin_vehicles')
@@ -194,6 +196,8 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
       .eq('row_type', 'VARIANT')
       .eq('status', 'live'),
   ]);
+
+  console.log('[liveVehicles] result:', baseResp.data, baseResp.error);
 
   if (baseResp.error) throw baseResp.error;
   if (variantResp.error) throw variantResp.error;

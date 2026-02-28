@@ -12,6 +12,8 @@ function json(body: unknown, status = 200): Response {
 }
 
 Deno.serve(async (req) => {
+  console.log('[ai-recommend] Function invoked');
+
   // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
@@ -88,6 +90,7 @@ Deno.serve(async (req) => {
 
     return json(recommendations);
   } catch (err) {
-    return json({ error: String(err) }, 500);
+    console.error('[ai-recommend] Fatal error:', err);
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500 });
   }
 });

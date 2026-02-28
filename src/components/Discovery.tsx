@@ -53,6 +53,10 @@ export default function Discovery({
     loadGarageState();
   }, []);
 
+  useEffect(() => {
+    console.log('[Discovery] vehicles loaded:', vehicles.length, vehicles[0]);
+  }, [vehicles]);
+
   const loadGarageState = () => {
     const garage = localStorage.getItem(STORAGE_KEYS.garageItems);
     setGarageItems(garage ? JSON.parse(garage) : []);
