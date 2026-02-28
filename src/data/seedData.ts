@@ -1,3 +1,5 @@
+// MIGRATION REFERENCE ONLY — not imported anywhere in the app.
+// This data has been seeded into Supabase. Do not import this file.
 export const seedVehicles = [
   {
     make: 'Tesla',

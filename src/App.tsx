@@ -3,9 +3,8 @@ import { AuthProvider } from './components/Auth/AuthContext';
 import { Navigation } from './components/Navigation';
 import Discovery from './components/Discovery';
 import VehicleDetailPage from './components/VehicleDetailPage';
-import Comparisons from './components/Comparisons';
+import Comparisons from './components/ComparisonPage';
 import GaragePage from './components/GaragePage';
-import { seedDatabase } from './lib/seedDatabase';
 import { AdminApp } from './admin/AdminApp';
 import { StructuredVehicle } from './types/specs';
 import { fetchLiveVehicles } from './lib/liveVehicles';
@@ -74,10 +73,6 @@ function AppContent() {
     if (v2) params.set('v2', v2);
     window.location.hash = params.toString() ? `compare?${params.toString()}` : 'compare';
   };
-
-  useEffect(() => {
-    seedDatabase();
-  }, []);
 
   useEffect(() => {
     const handleViewVehicle = (event: CustomEvent) => {
