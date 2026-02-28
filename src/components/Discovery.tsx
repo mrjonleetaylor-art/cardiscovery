@@ -6,6 +6,7 @@ import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { getDisplayProps } from './compare/utils/display';
 import { StructuredVehicle } from '../types/specs';
+import { getAIRecommendations, AIRecommendation } from '../lib/ai';
 
 interface Filters {
   search: string;
@@ -32,6 +33,10 @@ export default function Discovery({
 }) {
   const [garageItems, setGarageItems] = useState<string[]>([]);
   const [compareWarningId, setCompareWarningId] = useState<string | null>(null);
+
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiResults, setAiResults] = useState<AIRecommendation[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
     search: '',
@@ -93,6 +98,37 @@ export default function Discovery({
 
     return filtered;
   }, [vehicles, filters, advancedFilters]);
+
+  // When AI results are active, display them in rank order; otherwise use filtered list.
+  const displayedVehicles = useMemo(() => {
+    if (aiResults.length === 0) return filteredVehicles;
+    return aiResults
+      .map((r) => vehicles.find((v) => v.id === r.vehicleId))
+      .filter((v): v is StructuredVehicle => v != null);
+  }, [aiResults, filteredVehicles, vehicles]);
+
+  const aiReasonMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const r of aiResults) map[r.vehicleId] = r.reason;
+    return map;
+  }, [aiResults]);
+
+  const handleAISearch = async () => {
+    if (!aiQuery.trim()) return;
+    setAiLoading(true);
+    setAiResults([]);
+    try {
+      const results = await getAIRecommendations(aiQuery, vehicles);
+      setAiResults(results);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const clearAI = () => {
+    setAiQuery('');
+    setAiResults([]);
+  };
 
   const toggleGarage = (vehicleId: string) => {
     if (isInGarage(vehicleId)) {
@@ -270,6 +306,7 @@ export default function Discovery({
           <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
             <p className="text-sm text-slate-600">
               {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} found
+              {aiResults.length > 0 && ` — ${aiResults.length} AI-matched`}
             </p>
             <button
               onClick={() => {
@@ -291,8 +328,43 @@ export default function Discovery({
           </div>
         </div>
 
+        {/* AI search */}
+        <div className="mb-4 flex gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              placeholder="Describe what you're looking for…"
+              value={aiQuery}
+              onChange={(e) => setAiQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleAISearch(); }}
+              disabled={aiLoading}
+              className="w-full px-3 py-2 border border-slate-400 font-mono text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+            />
+            {aiLoading && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
+                Searching…
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => void handleAISearch()}
+            disabled={aiLoading || !aiQuery.trim()}
+            className="px-4 py-2 border border-slate-400 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Search
+          </button>
+          {aiResults.length > 0 && (
+            <button
+              onClick={clearAI}
+              className="px-4 py-2 border border-slate-300 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredVehicles.map((vehicle) => {
+          {displayedVehicles.map((vehicle) => {
             const inGarage = garageItems.includes(vehicle.id);
             const isCarA = compareV1Id === vehicle.id;
             const isCarB = compareV2Id === vehicle.id;
@@ -334,6 +406,9 @@ export default function Discovery({
                       <h3 className="text-xl font-bold text-slate-900">
                         {vehicle.year} {vehicle.make} {vehicle.model}
                       </h3>
+                      {aiReasonMap[vehicle.id] && (
+                        <p className="text-xs text-slate-400 mt-0.5 leading-snug">{aiReasonMap[vehicle.id]}</p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-slate-900">
@@ -405,7 +480,7 @@ export default function Discovery({
           })}
         </div>
 
-        {filteredVehicles.length === 0 && (
+        {displayedVehicles.length === 0 && (
           <div className="text-center py-12">
             <p className="text-lg text-slate-600">No vehicles found matching your criteria</p>
             <p className="text-sm text-slate-500 mt-2">Try adjusting your filters to see more results</p>
