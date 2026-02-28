@@ -1,5 +1,4 @@
 import { StructuredVehicle } from '../types/specs';
-import { buildRecommendationPrompt } from './prompts';
 
 export interface AIRecommendation {
   vehicleId: string;
@@ -7,60 +6,41 @@ export interface AIRecommendation {
   reason: string;
 }
 
+const FUNCTION_URL = 'https://dnmtnfeivwwhdqygdguv.supabase.co/functions/v1/ai-recommend';
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 /**
- * Calls the Anthropic Messages API and returns ranked vehicle recommendations.
+ * Calls the ai-recommend Supabase Edge Function, which proxies to Anthropic.
  * Returns an empty array on any failure — never throws.
  */
 export async function getAIRecommendations(
   query: string,
   vehicles: StructuredVehicle[],
 ): Promise<AIRecommendation[]> {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    console.error('[AI] VITE_ANTHROPIC_API_KEY is not set');
-    return [];
-  }
-
-  const prompt = buildRecommendationPrompt(query, vehicles);
-
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(FUNCTION_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
+        'Authorization': `Bearer ${anonKey}`,
       },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1024,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+      body: JSON.stringify({ query, vehicles }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[AI] API error:', response.status, errorText);
+      console.error('[AI] Function error:', response.status, errorText);
       return [];
     }
 
-    const data = await response.json();
-    const text: string = data.content?.[0]?.text ?? '';
+    const data: unknown = await response.json();
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      console.error('[AI] Failed to parse response as JSON:', text);
+    if (!Array.isArray(data)) {
+      console.error('[AI] Unexpected response shape:', data);
       return [];
     }
 
-    if (!Array.isArray(parsed)) {
-      console.error('[AI] Unexpected response shape:', text);
-      return [];
-    }
-
-    return (parsed as AIRecommendation[])
+    return (data as AIRecommendation[])
       .filter(
         (r) =>
           typeof r.vehicleId === 'string' &&

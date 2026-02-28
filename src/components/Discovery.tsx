@@ -35,7 +35,7 @@ export default function Discovery({
   const [compareWarningId, setCompareWarningId] = useState<string | null>(null);
 
   const [aiQuery, setAiQuery] = useState('');
-  const [aiResults, setAiResults] = useState<AIRecommendation[]>([]);
+  const [aiResults, setAiResults] = useState<AIRecommendation[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
   const [filters, setFilters] = useState<Filters>({
@@ -99,9 +99,9 @@ export default function Discovery({
     return filtered;
   }, [vehicles, filters, advancedFilters]);
 
-  // When AI results are active, display them in rank order; otherwise use filtered list.
+  // null = no search run (show full list); [] = search ran but no matches.
   const displayedVehicles = useMemo(() => {
-    if (aiResults.length === 0) return filteredVehicles;
+    if (aiResults === null) return filteredVehicles;
     return aiResults
       .map((r) => vehicles.find((v) => v.id === r.vehicleId))
       .filter((v): v is StructuredVehicle => v != null);
@@ -109,7 +109,7 @@ export default function Discovery({
 
   const aiReasonMap = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const r of aiResults) map[r.vehicleId] = r.reason;
+    for (const r of aiResults ?? []) map[r.vehicleId] = r.reason;
     return map;
   }, [aiResults]);
 
@@ -119,6 +119,8 @@ export default function Discovery({
     setAiResults([]);
     try {
       const results = await getAIRecommendations(aiQuery, vehicles);
+      console.log('[AI] recommendations:', results);
+      console.log('[AI] first vehicle id sample:', vehicles[0]?.id);
       setAiResults(results);
     } finally {
       setAiLoading(false);
@@ -127,7 +129,7 @@ export default function Discovery({
 
   const clearAI = () => {
     setAiQuery('');
-    setAiResults([]);
+    setAiResults(null);
   };
 
   const toggleGarage = (vehicleId: string) => {
@@ -306,7 +308,7 @@ export default function Discovery({
           <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
             <p className="text-sm text-slate-600">
               {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} found
-              {aiResults.length > 0 && ` — ${aiResults.length} AI-matched`}
+              {aiResults !== null && ` — ${aiResults.length} AI-matched`}
             </p>
             <button
               onClick={() => {
@@ -353,7 +355,7 @@ export default function Discovery({
           >
             Search
           </button>
-          {aiResults.length > 0 && (
+          {aiResults !== null && (
             <button
               onClick={clearAI}
               className="px-4 py-2 border border-slate-300 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
