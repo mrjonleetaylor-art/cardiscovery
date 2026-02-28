@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { Search, Plus, Minus, Check } from 'lucide-react';
+import { Plus, Minus, Check } from 'lucide-react';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
 import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
@@ -9,7 +9,6 @@ import { StructuredVehicle } from '../types/specs';
 import { getAIRecommendations, AIRecommendation } from '../lib/ai';
 
 interface Filters {
-  search: string;
   make: string;
   model: string;
   bodyType: string;
@@ -38,8 +37,31 @@ export default function Discovery({
   const [aiResults, setAiResults] = useState<AIRecommendation[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  const AI_PLACEHOLDER_SUGGESTIONS = [
+    'Family SUV under $80k with good fuel economy...',
+    'Fast sedan under $60k, rear-wheel drive...',
+    'Electric car with 400km+ range for city driving...',
+    'Safe, reliable first car under $35k...',
+    'Luxury SUV for long highway trips...',
+    '7-seater for school runs and weekend trips...',
+  ];
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [placeholderVisible, setPlaceholderVisible] = useState(true);
+  const [inputFocused, setInputFocused] = useState(false);
+
+  useEffect(() => {
+    if (inputFocused || aiQuery) return;
+    const interval = setInterval(() => {
+      setPlaceholderVisible(false);
+      setTimeout(() => {
+        setPlaceholderIndex((i) => (i + 1) % AI_PLACEHOLDER_SUGGESTIONS.length);
+        setPlaceholderVisible(true);
+      }, 300);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [inputFocused, aiQuery]);
+
   const [filters, setFilters] = useState<Filters>({
-    search: '',
     make: '',
     model: '',
     bodyType: '',
@@ -77,16 +99,6 @@ export default function Discovery({
 
   const filteredVehicles = useMemo(() => {
     let filtered = [...vehicles];
-
-    if (filters.search) {
-      const s = filters.search.toLowerCase();
-      filtered = filtered.filter(v =>
-        v.make.toLowerCase().includes(s) ||
-        v.model.toLowerCase().includes(s) ||
-        v.tags?.some(tag => tag.toLowerCase().includes(s)) ||
-        v.aiSummary?.toLowerCase().includes(s)
-      );
-    }
 
     if (filters.make) filtered = filtered.filter(v => v.make === filters.make);
     if (filters.model) filtered = filtered.filter(v => v.model === filters.model);
@@ -168,16 +180,43 @@ export default function Discovery({
           <p className="text-lg text-slate-600">Explore our curated selection and find what drives you</p>
         </div>
 
-        <div className="mb-2 flex flex-col sm:flex-row gap-4">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by make, model, or features..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-            />
+        {/* AI search */}
+        <div className="mb-2">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1">AI-Powered Search</p>
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                placeholder={inputFocused || aiQuery ? '' : AI_PLACEHOLDER_SUGGESTIONS[placeholderIndex]}
+                value={aiQuery}
+                onChange={(e) => setAiQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleAISearch(); }}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                disabled={aiLoading}
+                className={`w-full px-3 py-2 border border-slate-400 text-sm bg-white text-slate-900 focus:outline-none focus:border-slate-900 disabled:opacity-50 transition-opacity duration-300${placeholderVisible ? ' placeholder-slate-400' : ' placeholder-transparent'}`}
+              />
+            </div>
+            <button
+              onClick={() => void handleAISearch()}
+              disabled={aiLoading || !aiQuery.trim()}
+              className={`flex items-center gap-2 px-4 py-2 border border-slate-400 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
+            >
+              {aiLoading ? 'Searching...' : (
+                <>
+                  Search
+                  <span className="text-xs font-semibold tracking-wider text-white bg-slate-800 px-1.5 py-0.5 rounded-sm">AI</span>
+                </>
+              )}
+            </button>
+            {aiResults !== null && (
+              <button
+                onClick={clearAI}
+                className="px-4 py-2 border border-slate-300 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
+              >
+                Clear
+              </button>
+            )}
           </div>
         </div>
 
@@ -317,7 +356,6 @@ export default function Discovery({
             <button
               onClick={() => {
                 setFilters({
-                  search: '',
                   make: '',
                   model: '',
                   bodyType: '',
@@ -332,41 +370,6 @@ export default function Discovery({
               Clear Filters
             </button>
           </div>
-        </div>
-
-        {/* AI search */}
-        <div className="mb-4 flex gap-2">
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              placeholder="Describe what you're looking for…"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleAISearch(); }}
-              disabled={aiLoading}
-              className="w-full px-3 py-2 border border-slate-400 font-mono text-sm bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-900 disabled:opacity-50"
-            />
-            {aiLoading && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-mono">
-                Searching…
-              </span>
-            )}
-          </div>
-          <button
-            onClick={() => void handleAISearch()}
-            disabled={aiLoading || !aiQuery.trim()}
-            className="px-4 py-2 border border-slate-400 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Search
-          </button>
-          {aiResults !== null && (
-            <button
-              onClick={clearAI}
-              className="px-4 py-2 border border-slate-300 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
-            >
-              Clear
-            </button>
-          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
