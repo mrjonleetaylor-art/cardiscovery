@@ -44,9 +44,12 @@ export function resolveSpecs(
   const selectedPacks: Pack[] = [];
   const allAdjustments: SpecAdjustment[] = [];
   let totalPrice = trim.basePrice;
+  const allPacksById = new Map(
+    vehicle.trims.flatMap((t) => t.packs.map((p) => [p.id, p] as const)),
+  );
 
   for (const packId of selectedPackIds ?? []) {
-    const pack = trim.packs.find(p => p.id === packId);
+    const pack = trim.packs.find(p => p.id === packId) ?? allPacksById.get(packId);
     if (pack) {
       selectedPacks.push(pack);
       totalPrice += pack.priceDelta;

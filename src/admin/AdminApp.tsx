@@ -26,6 +26,20 @@ function getAdminPath(): string {
   return hash.slice(1); // strip the leading '#'
 }
 
+function splitPathAndQuery(path: string): { pathname: string; query: string } {
+  const idx = path.indexOf('?');
+  if (idx === -1) return { pathname: path, query: '' };
+  return { pathname: path.slice(0, idx), query: path.slice(idx) };
+}
+
+function decodeRouteParam(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 function navigate(path: string) {
   window.location.hash = path;
 }
@@ -41,29 +55,32 @@ function AdminRouter() {
 
   // Redirect bare /admin to /admin/cars
   useEffect(() => {
-    if (path === '/admin' || path === '/admin/') {
+    const { pathname } = splitPathAndQuery(path);
+    if (pathname === '/admin' || pathname === '/admin/') {
       navigate('/admin/cars');
     }
   }, [path]);
 
+  const { pathname, query } = splitPathAndQuery(path);
+
   // Preview route is full-page — rendered without AdminLayout sidebar
-  const previewMatch = path.match(/^\/admin\/preview\/(.+)$/);
+  const previewMatch = pathname.match(/^\/admin\/preview\/(.+)$/);
   if (previewMatch) {
-    return <AdminPreview baseId={previewMatch[1]} onNavigate={navigate} />;
+    return <AdminPreview baseId={decodeRouteParam(previewMatch[1])} listQuery={query} onNavigate={navigate} />;
   }
 
   const renderPage = () => {
-    if (path === '/admin/cars') {
-      return <CarsList onNavigate={navigate} />;
+    if (pathname === '/admin/cars') {
+      return <CarsList listQuery={query} onNavigate={navigate} />;
     }
 
-    if (path === '/admin/cars/new') {
-      return <CarEdit vehicleId={null} onNavigate={navigate} />;
+    if (pathname === '/admin/cars/new') {
+      return <CarEdit vehicleId={null} listQuery={query} onNavigate={navigate} />;
     }
 
-    const carEditMatch = path.match(/^\/admin\/cars\/([^?/]+)/);
+    const carEditMatch = pathname.match(/^\/admin\/cars\/([^?/]+)/);
     if (carEditMatch) {
-      return <CarEdit vehicleId={carEditMatch[1]} onNavigate={navigate} />;
+      return <CarEdit vehicleId={decodeRouteParam(carEditMatch[1])} listQuery={query} onNavigate={navigate} />;
     }
 
     // Catch-all: show dashboard
@@ -71,7 +88,7 @@ function AdminRouter() {
   };
 
   return (
-    <AdminLayout currentPath={path} onNavigate={navigate}>
+    <AdminLayout currentPath={pathname} onNavigate={navigate}>
       {renderPage()}
     </AdminLayout>
   );

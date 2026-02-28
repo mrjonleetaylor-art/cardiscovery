@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StructuredVehicle } from '../../../types/specs';
-import { structuredVehicles } from '../../../data/structuredVehicles';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../../../lib/resolveConfiguredVehicle';
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../../../lib/session';
 import { Filters } from '../types';
@@ -31,7 +30,7 @@ function createSelectionForVehicle(vehicle: StructuredVehicle | null): VehicleCo
 
 function sanitizeSelection(vehicle: StructuredVehicle, selection: VehicleConfigSelection): VehicleConfigSelection {
   const trim = vehicle.trims.find((t) => t.id === selection.trimId) ?? vehicle.trims[0];
-  const validPackIds = new Set(trim?.packs.map((p) => p.id) ?? []);
+  const validPackIds = new Set(vehicle.trims.flatMap((t) => t.packs.map((p) => p.id)));
   const validVariantIds = new Set(vehicle.variants?.map((v) => v.id) ?? []);
   const validSubvariantIds = new Set(vehicle.subvariants?.map((s) => s.id) ?? []);
   const validGroupIds = new Set((vehicle.configGroups ?? []).map((g) => g.id));
@@ -54,7 +53,15 @@ function sanitizeSelection(vehicle: StructuredVehicle, selection: VehicleConfigS
   };
 }
 
-export function useComparisonState({ prefillVehicleId }: { prefillVehicleId?: string | null }) {
+export function useComparisonState({
+  vehicles: allVehicles,
+  prefillVehicleIdA,
+  prefillVehicleIdB,
+}: {
+  vehicles: StructuredVehicle[];
+  prefillVehicleIdA?: string | null;
+  prefillVehicleIdB?: string | null;
+}) {
   const [vehicles, setVehicles] = useState<[StructuredVehicle | null, StructuredVehicle | null]>([null, null]);
   const [selection, setSelection] = useState<[VehicleConfigSelection, VehicleConfigSelection]>([
     createEmptySelection(),
@@ -105,17 +112,24 @@ export function useComparisonState({ prefillVehicleId }: { prefillVehicleId?: st
     } else {
       setResolvedSpecsState(prev => [null, prev[1]]);
     }
-  }, [vehicles, selection]);
+  }, [vehicles[0], selection[0]]);
 
   useEffect(() => {
     setHeroIndexA(0);
   }, [vehicles[0]]);
 
   useEffect(() => {
-    if (!prefillVehicleId) return;
-    const vehicle = structuredVehicles.find(v => v.id === prefillVehicleId) ?? null;
-    if (vehicle) selectCarA(vehicle);
-  }, [prefillVehicleId]);
+    const carA = prefillVehicleIdA ? allVehicles.find(v => v.id === prefillVehicleIdA) ?? null : null;
+    const carB = prefillVehicleIdB ? allVehicles.find(v => v.id === prefillVehicleIdB) ?? null : null;
+    if (carA && carB && carA.id !== carB.id) {
+      setVehicles([carA, carB]);
+      setSelection([createSelectionForVehicle(carA), createSelectionForVehicle(carB)]);
+      return;
+    }
+    if (carA) {
+      selectCarA(carA);
+    }
+  }, [prefillVehicleIdA, prefillVehicleIdB, allVehicles]);
 
   useEffect(() => {
     if (vehicles[1]) {
@@ -125,21 +139,44 @@ export function useComparisonState({ prefillVehicleId }: { prefillVehicleId?: st
     } else {
       setResolvedSpecsState(prev => [prev[0], null]);
     }
-  }, [vehicles, selection]);
+  }, [vehicles[1], selection[1]]);
 
-  const makes = Array.from(new Set(structuredVehicles.map(v => v.make))).sort();
+  const makes = useMemo(
+    () => Array.from(new Set(allVehicles.map(v => v.make))).sort(),
+    [allVehicles],
+  );
 
-  const modelsA = Array.from(new Set(
-    structuredVehicles.filter(v => !filtersA.make || v.make === filtersA.make).map(v => v.model),
-  )).sort();
-  const bodyTypesA = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).bodyType).filter(Boolean))).sort();
-  const fuelTypesA = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).fuelType).filter(Boolean))).sort();
+  const modelsA = useMemo(
+    () =>
+      Array.from(
+        new Set(allVehicles.filter(v => !filtersA.make || v.make === filtersA.make).map(v => v.model)),
+      ).sort(),
+    [allVehicles, filtersA.make],
+  );
+  const bodyTypesA = useMemo(
+    () => Array.from(new Set(allVehicles.map(v => getDisplayProps(v).bodyType).filter(Boolean))).sort(),
+    [allVehicles],
+  );
+  const fuelTypesA = useMemo(
+    () => Array.from(new Set(allVehicles.map(v => getDisplayProps(v).fuelType).filter(Boolean))).sort(),
+    [allVehicles],
+  );
 
-  const modelsB = Array.from(new Set(
-    structuredVehicles.filter(v => !filtersB.make || v.make === filtersB.make).map(v => v.model),
-  )).sort();
-  const bodyTypesB = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).bodyType).filter(Boolean))).sort();
-  const fuelTypesB = Array.from(new Set(structuredVehicles.map(v => getDisplayProps(v).fuelType).filter(Boolean))).sort();
+  const modelsB = useMemo(
+    () =>
+      Array.from(
+        new Set(allVehicles.filter(v => !filtersB.make || v.make === filtersB.make).map(v => v.model)),
+      ).sort(),
+    [allVehicles, filtersB.make],
+  );
+  const bodyTypesB = useMemo(
+    () => Array.from(new Set(allVehicles.map(v => getDisplayProps(v).bodyType).filter(Boolean))).sort(),
+    [allVehicles],
+  );
+  const fuelTypesB = useMemo(
+    () => Array.from(new Set(allVehicles.map(v => getDisplayProps(v).fuelType).filter(Boolean))).sort(),
+    [allVehicles],
+  );
 
   const selectionMatchesSaved: [boolean, boolean] = [
     inGarage[0] && !!vehicles[0] && doesSavedSelectionMatch(vehicles[0].id, selection[0]),
@@ -184,36 +221,44 @@ export function useComparisonState({ prefillVehicleId }: { prefillVehicleId?: st
     });
   };
 
-  const filteredVehiclesA = structuredVehicles.filter(v => {
-    const dp = getDisplayProps(v);
-    if (filtersA.search) {
-      const s = filtersA.search.toLowerCase();
-      if (!v.make.toLowerCase().includes(s) && !v.model.toLowerCase().includes(s) &&
-          !dp.bodyType.toLowerCase().includes(s) && !dp.fuelType.toLowerCase().includes(s)) return false;
-    }
-    if (filtersA.make && v.make !== filtersA.make) return false;
-    if (filtersA.model && v.model !== filtersA.model) return false;
-    if (filtersA.bodyType && dp.bodyType !== filtersA.bodyType) return false;
-    if (filtersA.fuelType && dp.fuelType !== filtersA.fuelType) return false;
-    if (!matchesAdvancedFilters(v, advancedFiltersA)) return false;
-    return true;
-  });
+  const filteredVehiclesA = useMemo(
+    () =>
+      allVehicles.filter(v => {
+        const dp = getDisplayProps(v);
+        if (filtersA.search) {
+          const s = filtersA.search.toLowerCase();
+          if (!v.make.toLowerCase().includes(s) && !v.model.toLowerCase().includes(s) &&
+              !dp.bodyType.toLowerCase().includes(s) && !dp.fuelType.toLowerCase().includes(s)) return false;
+        }
+        if (filtersA.make && v.make !== filtersA.make) return false;
+        if (filtersA.model && v.model !== filtersA.model) return false;
+        if (filtersA.bodyType && dp.bodyType !== filtersA.bodyType) return false;
+        if (filtersA.fuelType && dp.fuelType !== filtersA.fuelType) return false;
+        if (!matchesAdvancedFilters(v, advancedFiltersA)) return false;
+        return true;
+      }),
+    [allVehicles, filtersA, advancedFiltersA],
+  );
 
-  const filteredVehiclesB = structuredVehicles.filter(v => {
-    if (v.id === vehicles[0]?.id) return false;
-    const dp = getDisplayProps(v);
-    if (filtersB.search) {
-      const s = filtersB.search.toLowerCase();
-      if (!v.make.toLowerCase().includes(s) && !v.model.toLowerCase().includes(s) &&
-          !dp.bodyType.toLowerCase().includes(s) && !dp.fuelType.toLowerCase().includes(s)) return false;
-    }
-    if (filtersB.make && v.make !== filtersB.make) return false;
-    if (filtersB.model && v.model !== filtersB.model) return false;
-    if (filtersB.bodyType && dp.bodyType !== filtersB.bodyType) return false;
-    if (filtersB.fuelType && dp.fuelType !== filtersB.fuelType) return false;
-    if (!matchesAdvancedFilters(v, advancedFiltersB)) return false;
-    return true;
-  });
+  const filteredVehiclesB = useMemo(
+    () =>
+      allVehicles.filter(v => {
+        if (v.id === vehicles[0]?.id) return false;
+        const dp = getDisplayProps(v);
+        if (filtersB.search) {
+          const s = filtersB.search.toLowerCase();
+          if (!v.make.toLowerCase().includes(s) && !v.model.toLowerCase().includes(s) &&
+              !dp.bodyType.toLowerCase().includes(s) && !dp.fuelType.toLowerCase().includes(s)) return false;
+        }
+        if (filtersB.make && v.make !== filtersB.make) return false;
+        if (filtersB.model && v.model !== filtersB.model) return false;
+        if (filtersB.bodyType && dp.bodyType !== filtersB.bodyType) return false;
+        if (filtersB.fuelType && dp.fuelType !== filtersB.fuelType) return false;
+        if (!matchesAdvancedFilters(v, advancedFiltersB)) return false;
+        return true;
+      }),
+    [allVehicles, vehicles[0]?.id, filtersB, advancedFiltersB],
+  );
 
   const v1 = vehicles[0];
   const v2 = vehicles[1];

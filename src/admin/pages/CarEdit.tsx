@@ -13,9 +13,21 @@ import { resolveAdminVehicle } from '../lib/adminResolver';
 import { SPEC_COLUMN_DEFS, SPEC_COLUMNS } from '../csv/specSchema';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import {
+  BODY_TYPES,
+  DRIVETRAINS,
+  FUEL_TYPES,
+  TRANSMISSIONS,
+  EnumOption,
+  allowedEnumLabels,
+  isValidEnum,
+  labelFor,
+  normalizeEnum,
+} from '../lib/enums';
 
 interface CarEditProps {
   vehicleId: string | null; // null = new
+  listQuery?: string;
   onNavigate: (path: string) => void;
 }
 
@@ -86,7 +98,50 @@ function Field({
 const INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-colors';
 const TEXTAREA = `${INPUT} resize-y min-h-[80px]`;
 
-export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
+const CONTROLLED_SPEC_ENUMS: Record<string, EnumOption[]> = {
+  spec_overview_fuel_type: FUEL_TYPES,
+  spec_overview_drivetrain: DRIVETRAINS,
+  spec_overview_transmission: TRANSMISSIONS,
+};
+
+function EnumSelect({
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  options: EnumOption[];
+  placeholder: string;
+  onChange: (value: string) => void;
+}) {
+  const isCustom = !!value && !isValidEnum(value, options);
+  return (
+    <>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={INPUT}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+        {isCustom && <option value={value}>Custom: {value}</option>}
+      </select>
+      {isCustom && (
+        <p className="text-xs text-amber-600 mt-1">
+          Non-standard value, please choose a standard option.
+        </p>
+      )}
+    </>
+  );
+}
+
+export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps) {
+  const returnToList = `/admin/cars${listQuery}`;
   const isNew = vehicleId === null;
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [loading, setLoading] = useState(!isNew);
@@ -120,7 +175,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
     setLoading(true);
     try {
       const v = await getVehicle(vehicleId!);
-      if (!v) { onNavigate('/admin/cars'); return; }
+      if (!v) { onNavigate(returnToList); return; }
 
       const specs = Object.fromEntries(
         SPEC_COLUMNS.map((k) => [k, v.specs[k] ?? null])
@@ -180,6 +235,23 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
         base_id: form.row_type === 'BASE' ? (effectiveId || form.base_id) : form.base_id,
       };
 
+      const normalizedBodyType = normalizeEnum(payload.body_type, BODY_TYPES);
+      if (payload.body_type.trim() && !normalizedBodyType) {
+        setSaveError(`body_type "${payload.body_type}" is not standard. Allowed: ${allowedEnumLabels(BODY_TYPES)}`);
+        return;
+      }
+      payload.body_type = normalizedBodyType ?? '';
+
+      for (const [specKey, enumList] of Object.entries(CONTROLLED_SPEC_ENUMS)) {
+        const current = payload.specs[specKey];
+        const normalized = normalizeEnum(current, enumList);
+        if (current && current.trim() && !normalized) {
+          setSaveError(`${specKey} "${current}" is not standard. Allowed: ${allowedEnumLabels(enumList)}`);
+          return;
+        }
+        payload.specs[specKey] = normalized ?? null;
+      }
+
       if (!payload.id) { setSaveError('ID is required.'); return; }
       if (!payload.make) { setSaveError('Make is required.'); return; }
       if (!payload.model) { setSaveError('Model is required.'); return; }
@@ -188,15 +260,14 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
 
       if (isNew) {
         await createVehicle(payload);
-        onNavigate(`/admin/cars/${payload.id}`);
+        onNavigate(returnToList);
       } else {
         await updateVehicle(vehicleId!, {
           ...payload,
           // For BASE rows, ensure id == base_id
           base_id: payload.row_type === 'BASE' ? payload.id : payload.base_id,
         });
-        setSaveSuccess(true);
-        loadVehicle();
+        onNavigate(returnToList);
       }
     } catch (e) {
       setSaveError(String(e));
@@ -260,7 +331,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
       setShowAddPack(false);
       setAddPackCode('');
       setAddPackName('');
-      onNavigate(`/admin/cars/${newId}`);
+      onNavigate(`/admin/cars/${encodeURIComponent(newId)}${listQuery}`);
     } catch (e: unknown) {
       setAddPackError(String(e));
     } finally {
@@ -282,13 +353,19 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
   }
 
   const pageTitle = isNew ? 'New vehicle' : `Edit: ${form.make} ${form.model} ${form.year}`;
+  const isPackRow = form.row_type === 'VARIANT' && form.specs['admin_variant_kind'] === 'pack';
+  const hasSuspiciousPackPrice =
+    isPackRow &&
+    form.price_aud != null &&
+    baseVehicle?.price_aud != null &&
+    form.price_aud > baseVehicle.price_aud;
 
   return (
     <div className="p-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
         <button
-          onClick={() => onNavigate('/admin/cars')}
+          onClick={() => onNavigate(returnToList)}
           className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -301,7 +378,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
         </div>
         {!isNew && form.row_type === 'VARIANT' && baseVehicle && (
           <button
-            onClick={() => onNavigate(`/admin/cars/${baseVehicle.id}`)}
+            onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(baseVehicle.id)}${listQuery}`)}
             className="text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
           >
             Base: {baseVehicle.id}
@@ -319,7 +396,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
         {!isNew && (
           <button
             onClick={() => onNavigate(
-              `/admin/preview/${form.row_type === 'BASE' ? form.id : form.base_id}`
+              `/admin/preview/${encodeURIComponent(form.row_type === 'BASE' ? form.id : form.base_id)}${listQuery}`
             )}
             className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
             title="Preview in public Profile UI"
@@ -431,7 +508,12 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
             <input type="number" value={form.year} onChange={(e) => setField('year', parseInt(e.target.value) || 0)} placeholder="2024" className={INPUT} required min={1900} max={2100} />
           </Field>
           <Field label="Body type">
-            <input type="text" value={form.body_type} onChange={(e) => setField('body_type', e.target.value)} placeholder="SUV" className={INPUT} required />
+            <EnumSelect
+              value={form.body_type}
+              options={BODY_TYPES}
+              placeholder="Select body type"
+              onChange={(value) => setField('body_type', value)}
+            />
           </Field>
           <Field label="Status">
             <select value={form.status} onChange={(e) => setField('status', e.target.value as AdminVehicleStatus)} className={INPUT}>
@@ -440,7 +522,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
               <option value="archived">archived</option>
             </select>
           </Field>
-          <Field label="Price (AUD)">
+          <Field label={isPackRow ? 'Pack price delta (AUD)' : 'Price (AUD)'}>
             <input
               type="number"
               value={form.price_aud ?? ''}
@@ -449,8 +531,17 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
               className={INPUT}
               min={0}
             />
-            {form.row_type === 'VARIANT' && !form.price_aud && baseVehicle?.price_aud && (
+            {isPackRow ? (
+              <p className="text-xs text-slate-400 mt-1">
+                Pack rows use delta pricing: this amount is added on top of the selected trim.
+              </p>
+            ) : form.row_type === 'VARIANT' && !form.price_aud && baseVehicle?.price_aud ? (
               <p className="text-xs text-slate-400 mt-1">Inherits from base: ${baseVehicle.price_aud.toLocaleString()}</p>
+            ) : null}
+            {hasSuspiciousPackPrice && (
+              <p className="text-xs text-amber-600 mt-1">
+                Warning: pack delta (${form.price_aud?.toLocaleString()}) is greater than base price (${baseVehicle?.price_aud?.toLocaleString()}).
+              </p>
             )}
           </Field>
         </Section>
@@ -498,9 +589,24 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
                 const inheritedVal = baseVehicle && form.row_type === 'VARIANT'
                   ? baseVehicle.specs[def.key]
                   : null;
+                const enumList = CONTROLLED_SPEC_ENUMS[def.key];
                 return (
                   <Field key={def.key} label={def.label}>
-                    {def.multiline ? (
+                    {enumList ? (
+                      <>
+                        <EnumSelect
+                          value={val}
+                          options={enumList}
+                          placeholder={`Select ${def.label.toLowerCase()}`}
+                          onChange={(value) => setSpec(def.key, value)}
+                        />
+                        {inheritedVal && !val && (
+                          <p className="text-xs text-slate-400 mt-1">
+                            Inherits: {labelFor(inheritedVal, enumList)}
+                          </p>
+                        )}
+                      </>
+                    ) : def.multiline ? (
                       <textarea
                         value={val}
                         onChange={(e) => setSpec(def.key, e.target.value)}
@@ -531,7 +637,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onNavigate('/admin/cars')}
+              onClick={() => onNavigate(returnToList)}
               className="h-9 px-4 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
             >
               Cancel
@@ -593,7 +699,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1 justify-end">
                             <button
-                              onClick={() => onNavigate(`/admin/cars/${p.id}`)}
+                              onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(p.id)}${listQuery}`)}
                               title="Edit"
                               className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                             >
@@ -634,7 +740,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-900">Variants</h2>
             <button
-              onClick={() => onNavigate(`/admin/cars/new?base=${form.id}`)}
+              onClick={() => onNavigate(`/admin/cars/new?base=${encodeURIComponent(form.id)}${listQuery ? `&${listQuery.slice(1)}` : ''}`)}
               className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -672,7 +778,7 @@ export function CarEdit({ vehicleId, onNavigate }: CarEditProps) {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 justify-end">
                           <button
-                            onClick={() => onNavigate(`/admin/cars/${v.id}`)}
+                            onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(v.id)}${listQuery}`)}
                             title="Edit"
                             className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                           >

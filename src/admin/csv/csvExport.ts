@@ -7,6 +7,7 @@
 
 import { AdminVehicle } from '../adminTypes';
 import { ALL_COLUMNS, PIPE_SEPARATOR } from './specSchema';
+import { BODY_TYPES, DRIVETRAINS, FUEL_TYPES, TRANSMISSIONS, labelFor } from '../lib/enums';
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ function buildRow(vehicle: AdminVehicle): string {
         cells.push(csvCell(vehicle.year));
         break;
       case 'body_type':
-        cells.push(csvCell(vehicle.body_type));
+        cells.push(csvCell(labelFor(vehicle.body_type, BODY_TYPES)));
         break;
       case 'status':
         cells.push(csvCell(vehicle.status));
@@ -70,9 +71,18 @@ function buildRow(vehicle: AdminVehicle): string {
 
       default:
         // Spec / narrative / admin columns
-        // admin_variant_kind defaults to 'variant' when not set, so blank in CSV reads as 'variant'
         if (col === 'admin_variant_kind') {
-          cells.push(csvCell(vehicle.specs[col] ?? 'variant'));
+          if (vehicle.row_type === 'BASE') {
+            cells.push(csvCell(''));
+          } else {
+            cells.push(csvCell(vehicle.specs[col] ?? 'variant'));
+          }
+        } else if (col === 'spec_overview_fuel_type') {
+          cells.push(csvCell(labelFor(vehicle.specs[col], FUEL_TYPES)));
+        } else if (col === 'spec_overview_drivetrain') {
+          cells.push(csvCell(labelFor(vehicle.specs[col], DRIVETRAINS)));
+        } else if (col === 'spec_overview_transmission') {
+          cells.push(csvCell(labelFor(vehicle.specs[col], TRANSMISSIONS)));
         } else {
           cells.push(csvCell(vehicle.specs[col] ?? ''));
         }

@@ -8,6 +8,7 @@ import { VehicleProfileContent } from '../profile/VehicleProfileContent';
 
 export function GarageProfileModal({
   vehicle,
+  allVehicles,
   savedItem,
   onClose,
   onRemoved,
@@ -15,6 +16,7 @@ export function GarageProfileModal({
   returnFocusTo,
 }: {
   vehicle: StructuredVehicle;
+  allVehicles: StructuredVehicle[];
   savedItem: GarageItem;
   onClose: () => void;
   onRemoved: (vehicleId: string) => void;
@@ -195,6 +197,7 @@ export function GarageProfileModal({
           <div className="px-4 py-4 sm:px-5">
             <VehicleProfileContent
               vehicle={vehicle}
+              allVehicles={allVehicles}
               selection={selection}
               resolvedData={resolvedData}
               onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}

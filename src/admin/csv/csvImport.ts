@@ -28,6 +28,16 @@ import {
 } from '../adminTypes';
 import { REQUIRED_COLUMNS, SPEC_COLUMNS, PIPE_SEPARATOR } from './specSchema';
 import {
+  BODY_TYPES,
+  DRIVETRAINS,
+  FUEL_TYPES,
+  TRANSMISSIONS,
+  EnumOption,
+  allowedEnumLabels,
+  normalizeEnum,
+  suggestEnumLabel,
+} from '../lib/enums';
+import {
   getAllVehicleIds,
   getLiveVehicleIds,
   getVehicle,
@@ -92,6 +102,52 @@ function rowErr(rowNum: number, id: string | null, field: string, message: strin
   return { row_number: rowNum, vehicle_id: id, field, message };
 }
 
+const DEPENDENCY_SPEC_KEYS = [
+  'admin_requires_variant',
+  'admin_excludes_pack',
+  'admin_requires_pack',
+] as const;
+
+function isValidPipeSeparated(value: string): boolean {
+  if (!value) return true;
+  return value
+    .split(PIPE_SEPARATOR)
+    .every((part) => part.trim().length > 0);
+}
+
+const CONTROLLED_SPEC_ENUM_LISTS: Record<string, EnumOption[]> = {
+  spec_overview_fuel_type: FUEL_TYPES,
+  spec_overview_drivetrain: DRIVETRAINS,
+  spec_overview_transmission: TRANSMISSIONS,
+};
+
+function normalizeControlledEnum(
+  rowNum: number,
+  id: string | null,
+  field: string,
+  rawValue: string,
+  enumList: EnumOption[],
+  errors: ImportRowError[],
+): string | null {
+  if (!rawValue) return null;
+  const normalized = normalizeEnum(rawValue, enumList);
+  if (!normalized) {
+    const suggestion = suggestEnumLabel(rawValue, enumList);
+    errors.push(
+      rowErr(
+        rowNum,
+        id,
+        field,
+        `Invalid value "${rawValue}". Allowed values: ${allowedEnumLabels(enumList)}${
+          suggestion ? `. Did you mean ${suggestion}?` : ''
+        }`,
+      ),
+    );
+    return null;
+  }
+  return normalized;
+}
+
 // ─── Parse + validate ─────────────────────────────────────────────────────────
 
 export function parseCsv(text: string): CsvParseResult {
@@ -117,6 +173,7 @@ export function parseCsv(text: string): CsvParseResult {
   const rows: ValidatedCsvRow[] = [];
   const errors: ImportRowError[] = [];
   const seenIds = new Set<string>();
+  const seenVariantKeys = new Set<string>();
 
   for (let i = 0; i < rawRows.length; i++) {
     const raw = rawRows[i];
@@ -160,7 +217,16 @@ export function parseCsv(text: string): CsvParseResult {
     const make = v(raw, 'make');
     const model = v(raw, 'model');
     const yearRaw = v(raw, 'year');
-    const bodyType = v(raw, 'body_type');
+    const bodyTypeRaw = v(raw, 'body_type');
+    const normalizedBodyType = normalizeControlledEnum(
+      rowNum,
+      id || null,
+      'body_type',
+      bodyTypeRaw,
+      BODY_TYPES,
+      rowErrors,
+    );
+    const bodyType = normalizedBodyType ?? '';
 
     // year
     let year = 0;
@@ -194,6 +260,56 @@ export function parseCsv(text: string): CsvParseResult {
       }
     }
 
+    const rawVariantKind = v(raw, 'admin_variant_kind');
+    const dependencyValues = Object.fromEntries(
+      DEPENDENCY_SPEC_KEYS.map((key) => [key, v(raw, key)]),
+    ) as Record<(typeof DEPENDENCY_SPEC_KEYS)[number], string>;
+
+    let normalizedVariantKind: 'variant' | 'pack' | null = null;
+    if (rowType === 'BASE') {
+      if (rawVariantKind) {
+        rowErrors.push(rowErr(rowNum, id || null, 'admin_variant_kind', 'BASE rows must have blank admin_variant_kind'));
+      }
+    } else if (rowType === 'VARIANT') {
+      if (!rawVariantKind) {
+        normalizedVariantKind = 'variant';
+      } else if (rawVariantKind === 'variant' || rawVariantKind === 'pack') {
+        normalizedVariantKind = rawVariantKind;
+      } else {
+        rowErrors.push(
+          rowErr(
+            rowNum,
+            id || null,
+            'admin_variant_kind',
+            `admin_variant_kind must be 'pack', 'variant', or blank, got "${rawVariantKind}"`,
+          ),
+        );
+      }
+    }
+
+    const hasDependencyMetadata = DEPENDENCY_SPEC_KEYS.some((key) => dependencyValues[key].length > 0);
+    if (rowType === 'BASE' && hasDependencyMetadata) {
+      rowErrors.push(rowErr(rowNum, id || null, 'specs', 'BASE rows must not include dependency metadata'));
+    }
+
+    for (const key of DEPENDENCY_SPEC_KEYS) {
+      const value = dependencyValues[key];
+      if (!isValidPipeSeparated(value)) {
+        rowErrors.push(rowErr(rowNum, id || null, key, `${key} must be a pipe-separated string with no empty entries`));
+      }
+    }
+
+    if (rowType === 'VARIANT' && hasDependencyMetadata && normalizedVariantKind !== 'pack') {
+      rowErrors.push(
+        rowErr(
+          rowNum,
+          id || null,
+          'admin_variant_kind',
+          'Rows using pack dependency metadata must set admin_variant_kind=pack',
+        ),
+      );
+    }
+
     // ID uniqueness within file
     if (id && seenIds.has(id)) {
       rowErrors.push(rowErr(rowNum, id, 'id', `Duplicate id "${id}" in CSV`));
@@ -201,9 +317,15 @@ export function parseCsv(text: string): CsvParseResult {
       seenIds.add(id);
     }
 
-    // Collect errors
-    errors.push(...rowErrors);
-    if (rowErrors.length > 0) continue; // skip building ValidatedCsvRow for fatally invalid rows
+    // Variant uniqueness: (base_id, variant_code)
+    if (rowType === 'VARIANT' && baseId && variantCode) {
+      const variantKey = `${baseId}::${variantCode}`;
+      if (seenVariantKeys.has(variantKey)) {
+        rowErrors.push(rowErr(rowNum, id || null, 'variant_code', `Duplicate variant_code "${variantCode}" for base_id "${baseId}"`));
+      } else {
+        seenVariantKeys.add(variantKey);
+      }
+    }
 
     // gallery_image_urls — pipe-separated
     const galleryRaw = v(raw, 'gallery_image_urls');
@@ -216,16 +338,25 @@ export function parseCsv(text: string): CsvParseResult {
     for (const key of SPEC_COLUMNS) {
       const val = v(raw, key);
       if (key === 'admin_variant_kind') {
-        // Accept 'pack', 'variant', or blank (blank → 'variant')
-        if (val && val !== 'pack' && val !== 'variant') {
-          rowErrors.push(rowErr(rowNum, id || null, key,
-            `admin_variant_kind must be 'pack', 'variant', or blank, got "${val}"`));
-        }
-        specs[key] = val === 'pack' ? 'pack' : 'variant';
+        specs[key] = normalizedVariantKind;
+      } else if (CONTROLLED_SPEC_ENUM_LISTS[key]) {
+        const normalized = normalizeControlledEnum(
+          rowNum,
+          id || null,
+          key,
+          val,
+          CONTROLLED_SPEC_ENUM_LISTS[key],
+          rowErrors,
+        );
+        specs[key] = normalized;
       } else {
         specs[key] = val || null;
       }
     }
+
+    // Collect errors
+    errors.push(...rowErrors);
+    if (rowErrors.length > 0) continue; // skip building ValidatedCsvRow for fatally invalid rows
 
     // Determine if every non-required field is blank (used for skipping no-op rows)
     const isBlankRow =
@@ -302,17 +433,19 @@ export async function applyImport(
   // Fetch current DB state
   const allDbIds = await getAllVehicleIds();
   const liveDbIds = await getLiveVehicleIds();
+  const dbBaseIds = await getAllDbBaseIds();
 
   const csvIds = new Set(parseResult.rows.map((r) => r.id));
   const baseRows = parseResult.rows.filter((r) => r.row_type === 'BASE');
   const variantRows = parseResult.rows.filter((r) => r.row_type === 'VARIANT');
+  const packImportNotes = await buildPackImportNotes(baseRows, variantRows);
 
-  // Validate VARIANT base_ids: base must exist in DB or in this file's BASE rows
-  const csvBaseIds = new Set(baseRows.map((r) => r.id));
+  // Validate VARIANT base_ids: base must exist in DB BASE rows or in this file's BASE rows
+  const csvBaseIds = new Set(baseRows.map((r) => r.base_id));
   const additionalErrors: ImportRowError[] = [];
 
   for (const vRow of variantRows) {
-    const baseExistsInDb = allDbIds.has(vRow.base_id);
+    const baseExistsInDb = dbBaseIds.has(vRow.base_id);
     const baseExistsInCsv = csvBaseIds.has(vRow.base_id);
     if (!baseExistsInDb && !baseExistsInCsv) {
       additionalErrors.push({
@@ -334,7 +467,7 @@ export async function applyImport(
       stats: { ...baseStats, errors: additionalErrors.length },
       errors: additionalErrors,
       raw_csv_stored: false,
-      notes: null,
+      notes: packImportNotes,
     });
     return { batch, success: false, stats: baseStats, errors: additionalErrors };
   }
@@ -428,7 +561,7 @@ export async function applyImport(
     stats: finalStats,
     errors: writeErrors,
     raw_csv_stored: false,
-    notes: null,
+    notes: packImportNotes,
   });
 
   return {
@@ -463,6 +596,57 @@ function csvRowToAdminVehicle(row: ValidatedCsvRow): AdminVehicle {
     license_note: row.license_note,
     specs: row.specs,
   };
+}
+
+async function getAllDbBaseIds(): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from('admin_vehicles')
+    .select('id')
+    .eq('row_type', 'BASE');
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.id as string));
+}
+
+async function buildPackImportNotes(
+  baseRows: ValidatedCsvRow[],
+  variantRows: ValidatedCsvRow[],
+): Promise<string | null> {
+  const packRows = variantRows.filter((row) => row.specs['admin_variant_kind'] === 'pack');
+  if (packRows.length === 0) return null;
+
+  const notes: string[] = [
+    'Pack rows are treated as delta pricing (AUD): price_aud is added on top of the selected trim.',
+  ];
+
+  const csvBasePrices = new Map<string, number>();
+  for (const row of baseRows) {
+    if (row.price_aud != null) csvBasePrices.set(row.base_id, row.price_aud);
+  }
+
+  const dbBasePriceCache = new Map<string, number | null>();
+  for (const packRow of packRows) {
+    if (packRow.price_aud == null) continue;
+
+    let basePrice = csvBasePrices.get(packRow.base_id) ?? null;
+    if (basePrice == null) {
+      if (!dbBasePriceCache.has(packRow.base_id)) {
+        const dbBase = await getVehicle(packRow.base_id);
+        dbBasePriceCache.set(
+          packRow.base_id,
+          dbBase && dbBase.row_type === 'BASE' ? dbBase.price_aud : null,
+        );
+      }
+      basePrice = dbBasePriceCache.get(packRow.base_id) ?? null;
+    }
+
+    if (basePrice != null && packRow.price_aud > basePrice) {
+      notes.push(
+        `Warning row ${packRow.rowNumber} (${packRow.id}): pack delta $${packRow.price_aud.toLocaleString()} exceeds base price $${basePrice.toLocaleString()} for ${packRow.base_id}.`,
+      );
+    }
+  }
+
+  return notes.join(' ');
 }
 
 async function storeImportBatch(batch: ImportBatch): Promise<ImportBatch> {

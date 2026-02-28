@@ -7,8 +7,17 @@ import { ComparisonRow } from './sections/ComparisonRow';
 import { TABLE_GRID, TABLE_CELL_PAD } from './sections/tableLayout';
 import { VehicleConfigurationControls } from '../config/VehicleConfigurationControls';
 import { useComparisonState } from './hooks/useComparisonState';
+import { StructuredVehicle } from '../../types/specs';
 
-export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?: string | null }) {
+export default function ComparisonPage({
+  vehicles,
+  prefillVehicleIdA,
+  prefillVehicleIdB,
+}: {
+  vehicles: StructuredVehicle[];
+  prefillVehicleIdA?: string | null;
+  prefillVehicleIdB?: string | null;
+}) {
   const {
     selection,
     inGarage,
@@ -44,7 +53,7 @@ export default function ComparisonPage({ prefillVehicleId }: { prefillVehicleId?
     updateSelection,
     selectCarA,
     selectCarB,
-  } = useComparisonState({ prefillVehicleId });
+  } = useComparisonState({ vehicles, prefillVehicleIdA, prefillVehicleIdB });
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">

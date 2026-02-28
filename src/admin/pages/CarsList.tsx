@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown, Eye } from 'lucide-react';
 import { AdminVehicle, AdminVehicleStatus, ImportResult } from '../adminTypes';
 import { listVehicles, archiveVehicle, restoreVehicle, duplicateVehicle } from '../lib/adminVehicles';
@@ -8,10 +8,12 @@ import { parseCsv, applyImport } from '../csv/csvImport';
 import { StatusBadge } from '../components/StatusBadge';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { supabase } from '../../lib/supabase';
+import { FUEL_TYPES, labelFor, normalizeEnum } from '../lib/enums';
 
 type StatusFilter = 'active' | 'draft' | 'live' | 'archived';
 
 interface CarsListProps {
+  listQuery?: string;
   onNavigate: (path: string) => void;
 }
 
@@ -21,12 +23,53 @@ interface DuplicatePrompt {
   baseId: string;
 }
 
-export function CarsList({ onNavigate }: CarsListProps) {
+interface VehicleFilterFields {
+  makeKey: string;
+  yearValue: number | null;
+  fuelTypeKey: string;
+  fuelTypeLabel: string;
+}
+
+function normalizeKey(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function toDisplayLabel(value: string): string {
+  return value
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
+  const parseInitialFilters = () => {
+    const params = new URLSearchParams(listQuery.startsWith('?') ? listQuery.slice(1) : listQuery);
+    const status = params.get('status');
+    const year = params.get('year');
+    return {
+      statusFilter: status === 'active' || status === 'draft' || status === 'live' || status === 'archived'
+        ? status
+        : 'active',
+      showVariants: params.get('showVariants') === '1',
+      makeFilter: params.get('make') ?? '',
+      yearFilter: year && /^\d{4}$/.test(year) ? year : '',
+      fuelTypeFilter: params.get('fuel') ?? '',
+      searchFilter: params.get('search') ?? '',
+    } as const;
+  };
+
+  const initialFilters = parseInitialFilters();
+
   const [vehicles, setVehicles] = useState<AdminVehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
-  const [showVariants, setShowVariants] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialFilters.statusFilter);
+  const [showVariants, setShowVariants] = useState(initialFilters.showVariants);
+  const [makeFilter, setMakeFilter] = useState(initialFilters.makeFilter);
+  const [yearFilter, setYearFilter] = useState(initialFilters.yearFilter);
+  const [fuelTypeFilter, setFuelTypeFilter] = useState(initialFilters.fuelTypeFilter);
+  const [searchFilter] = useState(initialFilters.searchFilter);
 
   const [confirmArchive, setConfirmArchive] = useState<string | null>(null);
   const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
@@ -183,7 +226,7 @@ export function CarsList({ onNavigate }: CarsListProps) {
     const url = new URL(window.location.href);
     url.hash = '';
     // Dispatch view-vehicle event after redirecting to public app
-    const target = url.href + `#view=${vehicleId}`;
+    const target = url.href + `#view=${encodeURIComponent(vehicleId)}`;
     window.open(target, '_blank');
   };
 
@@ -194,6 +237,130 @@ export function CarsList({ onNavigate }: CarsListProps) {
     { value: 'live', label: 'Live only' },
     { value: 'archived', label: 'Archived (Graveyard)' },
   ];
+
+  const baseById = useMemo(
+    () => new Map(vehicles.filter((v) => v.row_type === 'BASE').map((v) => [v.id, v] as const)),
+    [vehicles],
+  );
+
+  const getFilterFields = (vehicle: AdminVehicle): VehicleFilterFields => {
+    const base = vehicle.row_type === 'VARIANT' ? baseById.get(vehicle.base_id) : undefined;
+
+    const rawMake = vehicle.make?.trim() || base?.make?.trim() || '';
+    const makeKey = normalizeKey(rawMake);
+
+    const rawYear = vehicle.year || base?.year || null;
+    const yearValue = rawYear && rawYear > 0 ? rawYear : null;
+
+    const rawFuelType = vehicle.specs?.['spec_overview_fuel_type']?.trim()
+      || base?.specs?.['spec_overview_fuel_type']?.trim()
+      || '';
+    const canonicalFuelType = normalizeEnum(rawFuelType, FUEL_TYPES);
+    const fuelTypeKey = !rawFuelType
+      ? 'unknown'
+      : canonicalFuelType ?? `custom:${normalizeKey(rawFuelType)}`;
+    const fuelTypeLabel = !rawFuelType
+      ? 'Unknown'
+      : canonicalFuelType ? labelFor(canonicalFuelType, FUEL_TYPES) : rawFuelType;
+
+    return { makeKey, yearValue, fuelTypeKey, fuelTypeLabel };
+  };
+
+  const makeOptions = useMemo(() => {
+    const countsByKey = new Map<string, Map<string, number>>();
+    for (const vehicle of vehicles) {
+      const fields = getFilterFields(vehicle);
+      if (!fields.makeKey) continue;
+      const rawMake = vehicle.make?.trim() || baseById.get(vehicle.base_id)?.make?.trim() || '';
+      const displayCandidate = rawMake || toDisplayLabel(fields.makeKey);
+      const keyCounts = countsByKey.get(fields.makeKey) ?? new Map<string, number>();
+      keyCounts.set(displayCandidate, (keyCounts.get(displayCandidate) ?? 0) + 1);
+      countsByKey.set(fields.makeKey, keyCounts);
+    }
+
+    return Array.from(countsByKey.entries())
+      .map(([value, labels]) => {
+        const label = Array.from(labels.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? toDisplayLabel(value);
+        return { value, label };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [vehicles, baseById]);
+
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>();
+    for (const vehicle of vehicles) {
+      const { yearValue } = getFilterFields(vehicle);
+      if (yearValue) years.add(yearValue);
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [vehicles, baseById]);
+
+  const fuelTypeOptions = useMemo(() => {
+    const labelsByKey = new Map<string, string>();
+    for (const vehicle of vehicles) {
+      const { fuelTypeKey, fuelTypeLabel } = getFilterFields(vehicle);
+      if (!fuelTypeKey) continue;
+      if (!labelsByKey.has(fuelTypeKey)) {
+        labelsByKey.set(fuelTypeKey, fuelTypeLabel);
+      }
+    }
+
+    return Array.from(labelsByKey.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [vehicles, baseById]);
+
+  // Keep filtering client-side for now; move these predicates to query params for server-side filtering later.
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter((vehicle) => {
+      const fields = getFilterFields(vehicle);
+      if (makeFilter && fields.makeKey !== makeFilter) return false;
+      if (yearFilter && String(fields.yearValue ?? '') !== yearFilter) return false;
+      if (fuelTypeFilter && fields.fuelTypeKey !== fuelTypeFilter) return false;
+      return true;
+    });
+  }, [vehicles, makeFilter, yearFilter, fuelTypeFilter, baseById]);
+
+  const clearFilters = () => {
+    setMakeFilter('');
+    setYearFilter('');
+    setFuelTypeFilter('');
+  };
+
+  const currentListQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set('status', statusFilter);
+    if (showVariants) params.set('showVariants', '1');
+    if (makeFilter) params.set('make', makeFilter);
+    if (yearFilter) params.set('year', yearFilter);
+    if (fuelTypeFilter) params.set('fuel', fuelTypeFilter);
+    if (searchFilter) params.set('search', searchFilter);
+    const query = params.toString();
+    return query ? `?${query}` : '';
+  }, [statusFilter, showVariants, makeFilter, yearFilter, fuelTypeFilter, searchFilter]);
+
+  useEffect(() => {
+    const hash = `/admin/cars${currentListQuery}`;
+    const base = window.location.href.split('#')[0];
+    window.history.replaceState(null, '', `${base}#${hash}`);
+  }, [currentListQuery]);
+
+  useEffect(() => {
+    const storageKey = `admin-cars-scroll:${currentListQuery}`;
+    const saved = sessionStorage.getItem(storageKey);
+    if (saved) {
+      const y = parseInt(saved, 10);
+      if (!Number.isNaN(y)) {
+        window.setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 0);
+      }
+    }
+    const saveScroll = () => sessionStorage.setItem(storageKey, String(window.scrollY));
+    window.addEventListener('scroll', saveScroll);
+    return () => {
+      saveScroll();
+      window.removeEventListener('scroll', saveScroll);
+    };
+  }, [currentListQuery]);
 
   return (
     <div className="p-6">
@@ -224,7 +391,7 @@ export function CarsList({ onNavigate }: CarsListProps) {
             />
           </label>
           <button
-            onClick={() => onNavigate('/admin/cars/new')}
+            onClick={() => onNavigate(`/admin/cars/new${currentListQuery}`)}
             className="h-9 flex items-center gap-1.5 px-3 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -286,7 +453,54 @@ export function CarsList({ onNavigate }: CarsListProps) {
           />
           Show variants
         </label>
-        <p className="text-xs text-slate-400 ml-auto">{vehicles.length} record{vehicles.length !== 1 ? 's' : ''}</p>
+        <div className="relative">
+          <select
+            value={makeFilter}
+            onChange={(e) => setMakeFilter(e.target.value)}
+            className="h-8 pl-3 pr-8 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 appearance-none cursor-pointer"
+          >
+            <option value="">All makes</option>
+            {makeOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+        </div>
+        <div className="relative">
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            className="h-8 pl-3 pr-8 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 appearance-none cursor-pointer"
+          >
+            <option value="">All years</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+        </div>
+        <div className="relative">
+          <select
+            value={fuelTypeFilter}
+            onChange={(e) => setFuelTypeFilter(e.target.value)}
+            className="h-8 pl-3 pr-8 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 appearance-none cursor-pointer"
+          >
+            <option value="">All fuel types</option>
+            {fuelTypeOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+        </div>
+        <button
+          onClick={clearFilters}
+          className="h-8 px-3 text-xs rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+        >
+          Clear filters
+        </button>
+        <p className="text-xs text-slate-400 ml-auto">
+          {filteredVehicles.length} / {vehicles.length} record{filteredVehicles.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
       {/* Table */}
@@ -321,10 +535,10 @@ export function CarsList({ onNavigate }: CarsListProps) {
                 <tr>
                   <td colSpan={showVariants ? 11 : 9} className="px-4 py-8 text-center text-sm text-slate-400">Loading…</td>
                 </tr>
-              ) : vehicles.length === 0 ? (
+              ) : filteredVehicles.length === 0 ? (
                 <tr>
                   <td colSpan={showVariants ? 11 : 9} className="px-4 py-12 text-center">
-                    {statusFilter === 'active' && !showVariants ? (
+                    {statusFilter === 'active' && !showVariants && vehicles.length === 0 ? (
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700">No vehicles yet</p>
                         <p className="text-xs text-slate-400">Import the current site dataset to get started.</p>
@@ -347,7 +561,7 @@ export function CarsList({ onNavigate }: CarsListProps) {
                   </td>
                 </tr>
               ) : (
-                vehicles.map((v) => (
+                filteredVehicles.map((v) => (
                   <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${v.row_type === 'VARIANT' ? 'bg-slate-50/40' : ''}`}>
                     {showVariants && (
                       <td className="px-4 py-3">
@@ -391,14 +605,14 @@ export function CarsList({ onNavigate }: CarsListProps) {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
                         <button
-                          onClick={() => onNavigate(`/admin/cars/${v.id}`)}
+                          onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(v.id)}${currentListQuery}`)}
                           title="Edit"
                           className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={() => onNavigate(`/admin/preview/${v.row_type === 'BASE' ? v.id : v.base_id}`)}
+                          onClick={() => onNavigate(`/admin/preview/${encodeURIComponent(v.row_type === 'BASE' ? v.id : v.base_id)}${currentListQuery}`)}
                           title="Preview"
                           className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
                         >

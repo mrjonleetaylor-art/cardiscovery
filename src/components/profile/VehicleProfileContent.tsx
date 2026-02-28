@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { structuredVehicles } from '../../data/structuredVehicles';
 import { VehicleConfigSelection } from '../../types/config';
 import { ResolvedVehicle } from '../../lib/resolveConfiguredVehicle';
 import { StructuredVehicle } from '../../types/specs';
@@ -8,6 +7,7 @@ import { VehicleConfigurationControls } from '../config/VehicleConfigurationCont
 
 export function VehicleProfileContent({
   vehicle,
+  allVehicles,
   selection,
   resolvedData,
   onSelectionChange,
@@ -15,6 +15,7 @@ export function VehicleProfileContent({
   showTrimOptions,
 }: {
   vehicle: StructuredVehicle;
+  allVehicles: StructuredVehicle[];
   selection: VehicleConfigSelection;
   resolvedData: ResolvedVehicle | null;
   onSelectionChange: (patch: Partial<VehicleConfigSelection>) => void;
@@ -30,10 +31,10 @@ export function VehicleProfileContent({
 
   const similarVehicles = useMemo(() => {
     const bodyType = vehicle.trims[0]?.specs.overview.bodyType;
-    return structuredVehicles
+    return allVehicles
       .filter((v) => v.id !== vehicle.id && v.trims[0]?.specs.overview.bodyType === bodyType)
       .slice(0, 3);
-  }, [vehicle]);
+  }, [vehicle, allVehicles]);
 
   const specs = resolvedData?.specs;
   const heroSrc =

@@ -1,11 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { Search, Plus, Minus, Check } from 'lucide-react';
-import { structuredVehicles } from '../data/structuredVehicles';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
 import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { getDisplayProps } from './compare/utils/display';
+import { StructuredVehicle } from '../types/specs';
 
 interface Filters {
   search: string;
@@ -17,9 +17,21 @@ interface Filters {
   budgetMax: number;
 }
 
-export default function Discovery() {
+export default function Discovery({
+  vehicles,
+  compareV1Id,
+  compareV2Id,
+  onSetCompareV1,
+  onSetCompareV2AndNavigate,
+}: {
+  vehicles: StructuredVehicle[];
+  compareV1Id: string | null;
+  compareV2Id: string | null;
+  onSetCompareV1: (vehicleId: string) => void;
+  onSetCompareV2AndNavigate: (vehicleId: string) => void;
+}) {
   const [garageItems, setGarageItems] = useState<string[]>([]);
-  const [compareList, setCompareList] = useState<string[]>([]);
+  const [compareWarningId, setCompareWarningId] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Filters>({
     search: '',
@@ -34,7 +46,6 @@ export default function Discovery() {
 
   useEffect(() => {
     loadGarageState();
-    loadCompareState();
   }, []);
 
   const loadGarageState = () => {
@@ -42,26 +53,21 @@ export default function Discovery() {
     setGarageItems(garage ? JSON.parse(garage) : []);
   };
 
-  const loadCompareState = () => {
-    const compare = localStorage.getItem(STORAGE_KEYS.compareList);
-    setCompareList(compare ? JSON.parse(compare) : []);
-  };
-
-  const makes = Array.from(new Set(structuredVehicles.map(v => v.make))).sort();
+  const makes = Array.from(new Set(vehicles.map(v => v.make))).sort();
   const models = Array.from(new Set(
-    structuredVehicles
+    vehicles
       .filter(v => !filters.make || v.make === filters.make)
       .map(v => v.model)
   )).sort();
   const bodyTypes = Array.from(new Set(
-    structuredVehicles.map(v => v.trims[0]?.specs.overview.bodyType).filter(Boolean)
+    vehicles.map(v => v.trims[0]?.specs.overview.bodyType).filter(Boolean)
   )).sort() as string[];
   const fuelTypes = Array.from(new Set(
-    structuredVehicles.map(v => v.trims[0]?.specs.overview.fuelType).filter(Boolean)
+    vehicles.map(v => v.trims[0]?.specs.overview.fuelType).filter(Boolean)
   )).sort() as string[];
 
   const filteredVehicles = useMemo(() => {
-    let filtered = [...structuredVehicles];
+    let filtered = [...vehicles];
 
     if (filters.search) {
       const s = filters.search.toLowerCase();
@@ -86,7 +92,7 @@ export default function Discovery() {
     filtered = filtered.filter(v => matchesAdvancedFilters(v, advancedFilters));
 
     return filtered;
-  }, [filters, advancedFilters]);
+  }, [vehicles, filters, advancedFilters]);
 
   const toggleGarage = (vehicleId: string) => {
     if (isInGarage(vehicleId)) {
@@ -98,20 +104,18 @@ export default function Discovery() {
     window.dispatchEvent(new Event('garage-updated'));
   };
 
-  const toggleCompare = (vehicleId: string) => {
-    const isRemoving = compareList.includes(vehicleId);
-    const newCompareList = isRemoving
-      ? compareList.filter(id => id !== vehicleId)
-      : [...compareList, vehicleId].slice(0, 2);
-
-    setCompareList(newCompareList);
-    localStorage.setItem(STORAGE_KEYS.compareList, JSON.stringify(newCompareList));
-
-    if (!isRemoving && newCompareList.length >= 1) {
-      setTimeout(() => {
-        window.dispatchEvent(new Event('navigate-compare'));
-      }, 300);
+  const handleCompareAction = (vehicleId: string) => {
+    if (!compareV1Id) {
+      onSetCompareV1(vehicleId);
+      setCompareWarningId(null);
+      return;
     }
+    if (compareV1Id === vehicleId) {
+      setCompareWarningId(vehicleId);
+      return;
+    }
+    onSetCompareV2AndNavigate(vehicleId);
+    setCompareWarningId(null);
   };
 
   return (
@@ -290,7 +294,8 @@ export default function Discovery() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredVehicles.map((vehicle) => {
             const inGarage = garageItems.includes(vehicle.id);
-            const inCompare = compareList.includes(vehicle.id);
+            const isCarA = compareV1Id === vehicle.id;
+            const isCarB = compareV2Id === vehicle.id;
             const { basePrice, imageUrl } = getDisplayProps(vehicle);
 
             return (
@@ -357,25 +362,34 @@ export default function Discovery() {
                       {inGarage ? 'In Garage' : 'Add to Garage'}
                     </button>
                     <button
-                      onClick={() => toggleCompare(vehicle.id)}
-                      disabled={compareList.length >= 2 && !inCompare}
+                      onClick={() => handleCompareAction(vehicle.id)}
                       className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        inCompare
+                        isCarA
                           ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
-                          : compareList.length >= 2
-                          ? 'border border-slate-200 text-slate-400 cursor-not-allowed'
+                          : isCarB
+                          ? 'bg-blue-100 text-blue-700 border border-blue-300'
                           : 'border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-900'
                       }`}
                     >
-                      {inCompare ? (
+                      {isCarA ? (
                         <span className="flex items-center gap-1">
-                          <Check className="w-4 h-4" /> Car {compareList.indexOf(vehicle.id) === 0 ? 'A' : 'B'}
+                          <Check className="w-4 h-4" /> Car A
                         </span>
+                      ) : isCarB ? (
+                        <span className="flex items-center gap-1">
+                          <Check className="w-4 h-4" /> Car B
+                        </span>
+                      ) : compareV1Id ? (
+                        'Car B'
                       ) : (
-                        'Compare'
+                        'Car A'
                       )}
                     </button>
                   </div>
+
+                  {compareWarningId === vehicle.id && compareV1Id === vehicle.id && (
+                    <p className="mt-2 text-xs text-amber-600">Car B must be a different vehicle.</p>
+                  )}
 
                   <button
                     onClick={() => {

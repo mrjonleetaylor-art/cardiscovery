@@ -3,7 +3,6 @@ import { HelpCircle } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
 import { UserPreferences } from '../types';
-import { structuredVehicles } from '../data/structuredVehicles';
 import { GarageItem, getGarageItems } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { STORAGE_KEYS } from '../lib/storageKeys';
@@ -11,8 +10,8 @@ import { GarageProfileModal } from './garage/GarageProfileModal';
 import { GarageVehicleCard } from './garage/GarageVehicleCard';
 import { GaragePreferencesPanel } from './garage/GaragePreferencesPanel';
 
-export default function GaragePage() {
-  const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
+export default function GaragePage({ vehicles }: { vehicles: StructuredVehicle[] }) {
+  const [garageVehicles, setGarageVehicles] = useState<StructuredVehicle[]>([]);
   const [garageItemsList, setGarageItemsList] = useState<GarageItem[]>([]);
   const [flyoutVehicleId, setFlyoutVehicleId] = useState<string | null>(null);
   const [flyoutTriggerEl, setFlyoutTriggerEl] = useState<HTMLElement | null>(null);
@@ -28,12 +27,12 @@ export default function GaragePage() {
   useEffect(() => {
     loadGarageVehicles();
     loadPreferences();
-  }, []);
+  }, [vehicles]);
 
   const loadGarageVehicles = () => {
     const items = getGarageItems();
     setGarageItemsList(items);
-    setVehicles(structuredVehicles.filter(v => items.some(i => i.vehicleId === v.id)));
+    setGarageVehicles(vehicles.filter(v => items.some(i => i.vehicleId === v.id)));
   };
 
   const loadPreferences = () => {
@@ -53,7 +52,7 @@ export default function GaragePage() {
 
   const handleRemove = (vehicleId: string) => {
     setGarageItemsList(prev => prev.filter(item => item.vehicleId !== vehicleId));
-    setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+    setGarageVehicles(prev => prev.filter(v => v.id !== vehicleId));
     if (flyoutVehicleId === vehicleId) setFlyoutVehicleId(null);
   };
 
@@ -68,13 +67,13 @@ export default function GaragePage() {
   };
 
   const flyoutVehicle = flyoutVehicleId
-    ? (vehicles.find(v => v.id === flyoutVehicleId) ?? null)
+    ? (garageVehicles.find(v => v.id === flyoutVehicleId) ?? null)
     : null;
   const flyoutSavedItem = flyoutVehicleId
     ? (garageItemsList.find(i => i.vehicleId === flyoutVehicleId) ?? null)
     : null;
 
-  if (vehicles.length === 0) {
+  if (garageVehicles.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
         <div className="max-w-7xl mx-auto">
@@ -106,7 +105,7 @@ export default function GaragePage() {
           <div>
             <h1 className="text-4xl font-bold text-slate-900 mb-2">Your Garage</h1>
             <p className="text-slate-600">
-              {vehicles.length} {vehicles.length === 1 ? 'vehicle' : 'vehicles'} saved
+              {garageVehicles.length} {garageVehicles.length === 1 ? 'vehicle' : 'vehicles'} saved
             </p>
           </div>
           <button
@@ -129,7 +128,7 @@ export default function GaragePage() {
         )}
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vehicles.map((vehicle) => {
+          {garageVehicles.map((vehicle) => {
             const garageItem = garageItemsList.find(i => i.vehicleId === vehicle.id) ?? null;
             return (
               <GarageVehicleCard
@@ -149,6 +148,7 @@ export default function GaragePage() {
       {flyoutVehicle && flyoutSavedItem && (
         <GarageProfileModal
           vehicle={flyoutVehicle}
+          allVehicles={vehicles}
           savedItem={flyoutSavedItem}
           onClose={() => setFlyoutVehicleId(null)}
           onRemoved={handleRemove}

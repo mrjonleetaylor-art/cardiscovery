@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Plus, Minus, Check, X } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
-import { structuredVehicles } from '../data/structuredVehicles';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
 import { supabase } from '../lib/supabase';
@@ -10,7 +9,7 @@ import { VehicleProfileContent } from './profile/VehicleProfileContent';
 
 function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfigSelection): VehicleConfigSelection {
   const trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
-  const validPackIds = new Set(trim?.packs.map(p => p.id) ?? []);
+  const validPackIds = new Set(vehicle.trims.flatMap((t) => t.packs.map((p) => p.id)));
   return {
     ...sel,
     trimId: trim?.id ?? null,
@@ -20,10 +19,11 @@ function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfig
 
 interface VehicleDetailPageProps {
   vehicleId: string;
+  vehicles: StructuredVehicle[];
   onBack: () => void;
 }
 
-export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPageProps) {
+export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: VehicleDetailPageProps) {
   const [vehicle, setVehicle] = useState<StructuredVehicle | null>(null);
   const [inGarage, setInGarage] = useState(false);
   const [selection, setSelection] = useState<VehicleConfigSelection>({
@@ -36,7 +36,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
   const [showLeadForm, setShowLeadForm] = useState(false);
 
   useEffect(() => {
-    const found = structuredVehicles.find(v => v.id === vehicleId) ?? null;
+    const found = vehicles.find(v => v.id === vehicleId) ?? null;
     setVehicle(found);
     if (found) {
       setSelection({
@@ -47,7 +47,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
         selectedOptionsByGroup: {},
       });
     }
-  }, [vehicleId]);
+  }, [vehicleId, vehicles]);
 
   const resolvedData: ResolvedVehicle | null = useMemo(() => {
     if (!vehicle) return null;
@@ -105,6 +105,7 @@ export default function VehicleDetailPage({ vehicleId, onBack }: VehicleDetailPa
           <div className="lg:col-span-2">
             <VehicleProfileContent
               vehicle={vehicle}
+              allVehicles={vehicles}
               selection={selection}
               resolvedData={resolvedData}
               onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}
