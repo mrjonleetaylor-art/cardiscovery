@@ -15,7 +15,7 @@
 
 import { AdminVehicle, ResolvedAdminVehicle } from '../adminTypes';
 import { SPEC_COLUMN_DEFS } from '../csv/specSchema';
-import type { StructuredVehicle, StructuredSpecs, Pack, SpecAdjustment } from '../../types/specs';
+import type { StructuredVehicle, StructuredSpecs, Trim, Pack, SpecAdjustment } from '../../types/specs';
 
 // ─── Admin resolver ───────────────────────────────────────────────────────────
 
@@ -63,34 +63,32 @@ export function resolveAdminVehicle(
 // ─── Public compatibility bridge ─────────────────────────────────────────────
 
 /**
- * Converts a resolved AdminVehicle into the StructuredVehicle shape consumed
- * by the public UI (Discovery, Profile, Compare, Garage).
- *
- * This is used ONLY by the admin preview — the public app continues to read
- * from src/data/structuredVehicles.ts until that data source is migrated.
- *
- * The output matches the StructuredVehicle contract exactly so that
- * resolveConfiguredVehicle() and all downstream components work unchanged.
- *
- * @param resolved  The fully-resolved BASE (or VARIANT) admin vehicle.
- * @param packVariants  Optional raw pack VARIANT rows for this base. Each will be
- *                      resolved against `resolved` and converted into a Pack.
+ * Derives a friendly display name for a trim.
+ * Priority: badge → trim → trim_name → variant_code (title-cased) → 'Base'
  */
-export function adminVehicleToStructuredVehicle(
-  resolved: ResolvedAdminVehicle,
-  packVariants: AdminVehicle[] = [],
-): StructuredVehicle {
-  const s = resolved.specs;
-
-  const images: string[] = [];
-  if (resolved.cover_image_url) images.push(resolved.cover_image_url);
-  for (const url of resolved.gallery_image_urls) {
-    if (url && !images.includes(url)) images.push(url);
+function friendlyTrimName(
+  specs: Record<string, string | null>,
+  variantCode: string | null,
+): string {
+  if (specs['badge']?.trim()) return specs['badge'].trim();
+  if (specs['trim']?.trim()) return specs['trim'].trim();
+  if (specs['trim_name']?.trim()) return specs['trim_name'].trim();
+  if (variantCode) {
+    // LONG_RANGE_AWD → Long Range Awd (last-resort readable label)
+    return variantCode
+      .split('_')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(' ');
   }
+  return 'Base';
+}
 
-  const specs: StructuredSpecs = {
+/** Builds StructuredSpecs from a resolved AdminVehicle record. */
+function buildStructuredSpecs(r: ResolvedAdminVehicle): StructuredSpecs {
+  const s = r.specs;
+  return {
     overview: {
-      bodyType: resolved.body_type || s['spec_overview_fuel_type'] || undefined,
+      bodyType: r.body_type || s['spec_overview_fuel_type'] || undefined,
       fuelType: s['spec_overview_fuel_type'] || undefined,
       drivetrain: s['spec_overview_drivetrain'] || undefined,
       transmission: s['spec_overview_transmission'] || undefined,
@@ -139,48 +137,122 @@ export function adminVehicleToStructuredVehicle(
       safetySummary: s['spec_safety_safety_summary'] || undefined,
     },
   };
+}
+
+/**
+ * Converts pack VARIANT rows into Pack[] for a specific trim, filtering by
+ * admin_requires_variant. Packs with no restriction appear on all trims.
+ *
+ * @param baseResolved   The BASE resolved record (used for spec diffing).
+ * @param trimVariantCode  The variant_code of the trim being built (null for BASE trim).
+ * @param packVariants   All pack VARIANT rows for this base vehicle.
+ */
+function buildPacksForTrim(
+  baseResolved: ResolvedAdminVehicle,
+  trimVariantCode: string | null,
+  packVariants: AdminVehicle[],
+): Pack[] {
+  return packVariants
+    .filter((pv) => {
+      const req = pv.specs['admin_requires_variant'];
+      if (!req) return true; // no restriction: appears on all trims
+      const required = req
+        .split('|')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Match against the trim's variant_code (empty string for BASE trim)
+      return required.includes(trimVariantCode ?? '');
+    })
+    .map((packVariant) => {
+      const resolvedPack = resolveAdminVehicle(baseResolved, packVariant);
+      const packName =
+        packVariant.specs['pack_name'] ||
+        packVariant.license_note ||
+        packVariant.variant_code ||
+        packVariant.id;
+
+      const priceDelta = packVariant.price_aud ?? 0;
+
+      // Diff base vs resolved pack specs — collect adjustments for changed structured fields
+      const specAdjustments: SpecAdjustment[] = [];
+      for (const def of SPEC_COLUMN_DEFS) {
+        if (def.category === 'admin' || def.category === 'narrative') continue;
+        const dotIdx = def.path.indexOf('.');
+        if (dotIdx === -1) continue;
+        const category = def.path.slice(0, dotIdx) as keyof StructuredSpecs;
+        const field = def.path.slice(dotIdx + 1);
+        const baseVal = baseResolved.specs[def.key];
+        const packVal = resolvedPack.specs[def.key];
+        if (packVal && packVal !== baseVal) {
+          specAdjustments.push({ category, field, value: packVal });
+        }
+      }
+
+      return {
+        id: packVariant.id,
+        name: packName,
+        category: 'option',
+        priceDelta,
+        features: [],
+        specAdjustments: specAdjustments.length > 0 ? specAdjustments : undefined,
+      };
+    });
+}
+
+/**
+ * Converts a resolved AdminVehicle into the StructuredVehicle shape consumed
+ * by the public UI (Discovery, Profile, Compare, Garage).
+ *
+ * This is used ONLY by the admin preview — the public app continues to read
+ * from src/data/structuredVehicles.ts until that data source is migrated.
+ *
+ * The output matches the StructuredVehicle contract exactly so that
+ * resolveConfiguredVehicle() and all downstream components work unchanged.
+ *
+ * @param resolved       The fully-resolved BASE admin vehicle.
+ * @param packVariants   Raw pack VARIANT rows for this base (admin_variant_kind='pack').
+ * @param trimVariants   Raw trim VARIANT rows for this base (non-pack VARIANTs).
+ *                       Each becomes a separate Trim in the output, sorted by price.
+ */
+export function adminVehicleToStructuredVehicle(
+  resolved: ResolvedAdminVehicle,
+  packVariants: AdminVehicle[] = [],
+  trimVariants: AdminVehicle[] = [],
+): StructuredVehicle {
+  const s = resolved.specs;
+
+  const images: string[] = [];
+  if (resolved.cover_image_url) images.push(resolved.cover_image_url);
+  for (const url of resolved.gallery_image_urls) {
+    if (url && !images.includes(url)) images.push(url);
+  }
 
   const parsePipe = (val: string | null | undefined): string[] =>
     val ? val.split('|').map((v) => v.trim()).filter(Boolean) : [];
 
-  // ── Build packs from pack VARIANT rows ─────────────────────────────────────
-  const packs: Pack[] = packVariants.map((packVariant) => {
-    const resolvedPack = resolveAdminVehicle(resolved, packVariant);
-    const packName =
-      packVariant.specs['pack_name'] ||
-      packVariant.license_note ||
-      packVariant.variant_code ||
-      packVariant.id;
+  // ── BASE trim ──────────────────────────────────────────────────────────────
+  const baseTrim: Trim = {
+    id: `${resolved.id}-default`,
+    name: friendlyTrimName(s, resolved.variant_code),
+    basePrice: resolved.price_aud ?? 0,
+    specs: buildStructuredSpecs(resolved),
+    packs: buildPacksForTrim(resolved, null, packVariants),
+  };
 
-    const priceDelta =
-      resolvedPack.price_aud != null && resolved.price_aud != null
-        ? resolvedPack.price_aud - resolved.price_aud
-        : 0;
-
-    // Diff base vs pack resolved specs — collect adjustments for changed structured fields
-    const specAdjustments: SpecAdjustment[] = [];
-    for (const def of SPEC_COLUMN_DEFS) {
-      if (def.category === 'admin' || def.category === 'narrative') continue;
-      const dotIdx = def.path.indexOf('.');
-      if (dotIdx === -1) continue; // skip top-level narrative paths
-      const category = def.path.slice(0, dotIdx) as keyof StructuredSpecs;
-      const field = def.path.slice(dotIdx + 1);
-      const baseVal = resolved.specs[def.key];
-      const packVal = resolvedPack.specs[def.key];
-      if (packVal && packVal !== baseVal) {
-        specAdjustments.push({ category, field, value: packVal });
-      }
-    }
-
+  // ── VARIANT trims (non-pack) ───────────────────────────────────────────────
+  const variantTrims: Trim[] = trimVariants.map((tv) => {
+    const resolvedVariant = resolveAdminVehicle(resolved, tv);
     return {
-      id: `${resolved.id}:${packVariant.variant_code}`,
-      name: packName,
-      category: 'option',
-      priceDelta,
-      features: [],
-      specAdjustments: specAdjustments.length > 0 ? specAdjustments : undefined,
+      id: tv.id,
+      name: friendlyTrimName(tv.specs, tv.variant_code),
+      basePrice: resolvedVariant.price_aud ?? 0,
+      specs: buildStructuredSpecs(resolvedVariant),
+      packs: buildPacksForTrim(resolved, tv.variant_code, packVariants),
     };
   });
+
+  // Sort all trims by basePrice ascending
+  const allTrims = [baseTrim, ...variantTrims].sort((a, b) => a.basePrice - b.basePrice);
 
   return {
     id: resolved.id,
@@ -193,14 +265,6 @@ export function adminVehicleToStructuredVehicle(
     tradeOffs: parsePipe(s['trade_offs']),
     positioningSummary: s['positioning_summary'] || undefined,
     tags: parsePipe(s['tags']),
-    trims: [
-      {
-        id: `${resolved.id}-default`,
-        name: 'Default',
-        basePrice: resolved.price_aud ?? 0,
-        specs,
-        packs,
-      },
-    ],
+    trims: allTrims,
   };
 }

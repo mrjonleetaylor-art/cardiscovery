@@ -30,31 +30,22 @@ export function TrimSection({
           onChange={e => onSelectTrim(e.target.value)}
           className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
         >
-          {vehicle.trims.map(trim => {
-            const delta = trim.basePrice - vehicle.trims[0].basePrice;
-            return (
-              <option key={trim.id} value={trim.id}>
-                {trim.name}{delta > 0 ? ` (+$${delta.toLocaleString()})` : ''}
-              </option>
-            );
-          })}
+          {vehicle.trims.map(trim => (
+            <option key={trim.id} value={trim.id}>{trim.name}</option>
+          ))}
         </select>
       ) : (
         <div className={gridClass}>
           {vehicle.trims.map(trim => {
-            const delta = trim.basePrice - vehicle.trims[0].basePrice;
             const isSelected = selectedTrimId === trim.id;
             return (
               <button
                 key={trim.id}
                 type="button"
                 onClick={() => onSelectTrim(trim.id)}
-                className={`${btnBase} ${isSelected ? btnOn : btnOff} overflow-hidden`}
+                className={`${btnBase} ${isSelected ? btnOn : btnOff}`}
               >
-                <div className="flex items-start gap-2 overflow-hidden">
-                  <span className="font-medium text-sm min-w-0 break-words flex-1">{trim.name}</span>
-                  <span className="text-xs sm:text-sm flex-shrink-0 whitespace-nowrap text-right">{delta > 0 ? `+$${delta.toLocaleString()}` : 'Base'}</span>
-                </div>
+                <span className="font-medium text-sm">{trim.name}</span>
               </button>
             );
           })}

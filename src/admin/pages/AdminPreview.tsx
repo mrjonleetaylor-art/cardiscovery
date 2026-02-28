@@ -27,6 +27,7 @@ import { resolveAdminVehicle, adminVehicleToStructuredVehicle } from '../lib/adm
 
 interface AdminPreviewProps {
   baseId: string;
+  listQuery?: string;
   onNavigate: (path: string) => void;
 }
 
@@ -35,7 +36,7 @@ function sanitizeSelection(
   sel: VehicleConfigSelection,
 ): VehicleConfigSelection {
   const trim = vehicle.trims.find((t) => t.id === sel.trimId) ?? vehicle.trims[0];
-  const validPackIds = new Set(trim?.packs.map((p) => p.id) ?? []);
+  const validPackIds = new Set(vehicle.trims.flatMap((t) => t.packs.map((p) => p.id)));
   return {
     ...sel,
     trimId: trim?.id ?? null,
@@ -43,7 +44,7 @@ function sanitizeSelection(
   };
 }
 
-export function AdminPreview({ baseId, onNavigate }: AdminPreviewProps) {
+export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPreviewProps) {
   const [base, setBase] = useState<AdminVehicle | null>(null);
   const [structured, setStructured] = useState<StructuredVehicle | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,12 +80,11 @@ export function AdminPreview({ baseId, onNavigate }: AdminPreviewProps) {
         setBase(vehicle);
 
         const variants = await getVariantsForBase(vehicle.base_id);
-        const packVariants = variants.filter(
-          (v) => v.specs?.['admin_variant_kind'] === 'pack',
-        );
+        const packVariants = variants.filter((v) => v.specs?.['admin_variant_kind'] === 'pack');
+        const trimVariants = variants.filter((v) => v.specs?.['admin_variant_kind'] !== 'pack');
 
         const resolvedBase = resolveAdminVehicle(vehicle);
-        const sv = adminVehicleToStructuredVehicle(resolvedBase, packVariants);
+        const sv = adminVehicleToStructuredVehicle(resolvedBase, packVariants, trimVariants);
 
         setStructured(sv);
         setSelection({
@@ -126,7 +126,7 @@ export function AdminPreview({ baseId, onNavigate }: AdminPreviewProps) {
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
           <p className="text-sm text-red-600 mb-4">{error ?? 'Unknown error'}</p>
           <button
-            onClick={() => onNavigate(`/admin/cars/${baseId}`)}
+            onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(baseId)}${listQuery}`)}
             className="text-sm text-slate-600 hover:text-slate-900 underline"
           >
             Back to edit
@@ -146,7 +146,7 @@ export function AdminPreview({ baseId, onNavigate }: AdminPreviewProps) {
       <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onNavigate(`/admin/cars/${baseId}`)}
+            onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(baseId)}${listQuery}`)}
             className="flex items-center gap-1.5 text-xs font-medium text-amber-800 hover:text-amber-900"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
@@ -168,6 +168,7 @@ export function AdminPreview({ baseId, onNavigate }: AdminPreviewProps) {
             <div className="lg:col-span-2">
               <VehicleProfileContent
                 vehicle={structured}
+                allVehicles={[structured]}
                 selection={selection}
                 resolvedData={resolvedData}
                 onSelectionChange={(patch) =>

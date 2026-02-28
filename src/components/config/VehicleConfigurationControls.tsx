@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { StructuredVehicle, Pack, Trim } from '../../types/specs';
 import { VehicleConfigSelection, ConfigGroup } from '../../types/config';
 import { TrimSection } from './sections/TrimSection';
@@ -79,8 +80,9 @@ export function sanitizeSelectionForVehicle(
   const validTrim: Trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
   const trimId = validTrim?.id ?? null;
 
-  // Packs — only keep IDs present in the resolved trim
-  const validPackIds = new Set(validTrim?.packs.map(p => p.id) ?? []);
+  // Packs are per-trim; retain only IDs valid for the currently selected trim.
+  const selectedTrimForSanitize = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
+  const validPackIds = new Set((selectedTrimForSanitize?.packs ?? []).map(p => p.id));
   const packIds = (sel.packIds ?? []).filter(id => validPackIds.has(id));
 
   // Variant — must exist in vehicle.variants
@@ -127,6 +129,7 @@ export function VehicleConfigurationControls({
 }) {
   const selectedTrim: Trim = vehicle.trims.find(t => t.id === selection.trimId) ?? vehicle.trims[0];
   const packs: Pack[] = selectedTrim?.packs ?? [];
+  const allPacks: Pack[] = packs; // alias used by the invariant diagnostic below
   const selectedPackIds = selection.packIds ?? [];
   const isSidebar = mode === 'sidebar';
 
@@ -214,6 +217,36 @@ export function VehicleConfigurationControls({
   const packsStepLabel = `Step ${step} · Option Packs`;
 
   // ─── Render ───────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const selectedTrimPackCount = selectedTrim?.packs?.length ?? 0;
+    const vehicleShape = {
+      trimCount: vehicle.trims.length,
+      variantCount: vehicle.variants?.length ?? 0,
+      subvariantCount: vehicle.subvariants?.length ?? 0,
+      configGroupCount: vehicle.configGroups?.length ?? 0,
+    };
+    console.log('[VehicleConfig] Trim & Options diagnostic', {
+      vehicleId: vehicle.id,
+      selectedTrimId: selection.trimId ?? null,
+      selectedVariantId: selection.variantId ?? null,
+      selectedSubvariantId: selection.subvariantId ?? null,
+      renderedPackCount: packs.length,
+      renderedPackIds: packs.map((p) => p.id),
+      selectedTrimPackCount,
+      vehicleShape,
+    });
+
+    if ((selection.variantId || selection.subvariantId) && packs.length === 0 && allPacks.length > 0) {
+      console.warn('[VehicleConfig] Invariant: packs dropped after variant selection', {
+        vehicleId: vehicle.id,
+        selectedTrimId: selection.trimId ?? null,
+        selectedVariantId: selection.variantId ?? null,
+        selectedSubvariantId: selection.subvariantId ?? null,
+      });
+    }
+  }, [vehicle, selection.trimId, selection.variantId, selection.subvariantId, packs, allPacks, selectedTrim]);
 
   return (
     <>

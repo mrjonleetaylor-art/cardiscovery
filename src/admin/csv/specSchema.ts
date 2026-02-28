@@ -85,8 +85,12 @@ export const SPEC_COLUMN_DEFS: SpecColumnDef[] = [
   { key: 'tags',                label: 'Tags (pipe-separated)',      path: 'tags',                category: 'narrative' },
 
   // ── Admin ──────────────────────────────────────────────────────────────────
-  { key: 'admin_variant_kind', label: 'Variant Kind',  path: 'admin_variant_kind', category: 'admin' },
-  { key: 'pack_name',          label: 'Pack Name',     path: 'pack_name',          category: 'admin' },
+  { key: 'badge',              label: 'Badge / Display Name', path: 'badge',              category: 'admin' },
+  { key: 'admin_variant_kind', label: 'Variant Kind',         path: 'admin_variant_kind', category: 'admin' },
+  { key: 'pack_name',          label: 'Pack Name',            path: 'pack_name',          category: 'admin' },
+  { key: 'admin_requires_variant', label: 'Requires Variant (pipe-separated)', path: 'admin_requires_variant', category: 'admin' },
+  { key: 'admin_excludes_pack',    label: 'Excludes Pack (pipe-separated)',    path: 'admin_excludes_pack',    category: 'admin' },
+  { key: 'admin_requires_pack',    label: 'Requires Pack (pipe-separated)',    path: 'admin_requires_pack',    category: 'admin' },
 ] as const;
 
 /**
