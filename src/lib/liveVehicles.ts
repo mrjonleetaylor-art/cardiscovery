@@ -182,8 +182,6 @@ function runLegacyVariantSanityCheck(): void {
 export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
   runLegacyVariantSanityCheck();
 
-  console.log('[liveVehicles] fetching...');
-
   const [baseResp, variantResp] = await Promise.all([
     supabase
       .from('admin_vehicles')
@@ -196,8 +194,6 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
       .eq('row_type', 'VARIANT')
       .eq('status', 'live'),
   ]);
-
-  console.log('[liveVehicles] result:', baseResp.data, baseResp.error);
 
   if (baseResp.error) throw baseResp.error;
   if (variantResp.error) throw variantResp.error;
@@ -226,18 +222,6 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
 
     runDevInvariantChecks(base, variants, packVariants, defaultEngineVariant);
 
-    if (import.meta.env.DEV && base.id === 'tesla-modely-2026') {
-      console.log('[liveVehicles] base diagnostic', {
-        baseId: base.id,
-        basePriceAud: base.price_aud,
-        engineVariants: engineVariants.map((v) => ({ id: v.id, price_aud: v.price_aud })),
-        packVariants: packVariants.map((v) => ({ id: v.id, pack_name: v.specs['pack_name'] ?? null })),
-        chosenDefaultVariant: defaultEngineVariant
-          ? { id: defaultEngineVariant.id, price_aud: defaultEngineVariant.price_aud }
-          : null,
-      });
-    }
-
     const resolved = resolveAdminVehicle(base, defaultEngineVariant);
     const structuredVehicle = adminVehicleToStructuredVehicle(resolved, packVariants);
 
@@ -253,16 +237,6 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
         });
       }
       structuredVehicle.trims = trims;
-    }
-
-    if (import.meta.env.DEV && base.id === 'tesla-modely-2026') {
-      console.log('[liveVehicles] structured pack diagnostic', {
-        baseId: base.id,
-        trimCount: structuredVehicle.trims.length,
-        trimIds: structuredVehicle.trims.map((t) => t.id),
-        optionPackCount: structuredVehicle.trims[0]?.packs.length ?? 0,
-        optionPackNames: (structuredVehicle.trims[0]?.packs ?? []).map((p) => p.name),
-      });
     }
 
     vehicles.push(structuredVehicle);

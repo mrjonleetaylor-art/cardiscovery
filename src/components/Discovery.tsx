@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { Plus, Minus, Check } from 'lucide-react';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
@@ -36,6 +36,65 @@ export default function Discovery({
   const [aiQuery, setAiQuery] = useState('');
   const [aiResults, setAiResults] = useState<AIRecommendation[] | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+
+  const AI_LOADING_MESSAGES = [
+    'Consulting the oracle...',
+    'Arguing with the algorithm...',
+    'Cross-referencing 47 opinions...',
+    'Checking if it comes in black...',
+    'Asking Claude nicely...',
+    'Reviewing your life choices...',
+    'Depreciating assets mentally...',
+    'Calculating school run viability...',
+    'Questioning the need for a V8...',
+    'Comparing boot space to your ego...',
+    'Weighing practicality against desire...',
+    'Consulting the depreciation tables...',
+    'Factoring in the cost of pride...',
+    'Auditing your fuel budget assumptions...',
+    'Stress-testing the parking scenarios...',
+    'Simulating the highway merge...',
+    'Reconsidering the station wagon...',
+    'Running the numbers on the number of cupholders...',
+    'Determining whether turbo is truly necessary...',
+    'Evaluating your relationship with manual transmissions...',
+    'Assessing the genuine utility of a sunroof...',
+    'Benchmarking against your neighbour\'s car...',
+    'Estimating the cost of explaining this to your accountant...',
+    'Checking tow capacity against optimism...',
+    'Calibrating enthusiasm to budget...',
+    'Computing resale value anxiety...',
+    'Validating the need for all-wheel drive in a capital city...',
+    'Reconsidering leather seats in a hot climate...',
+    'Querying the database of regret...',
+    'Indexing the catalogue of second thoughts...',
+    'Performing due diligence on horsepower claims...',
+    'Assessing the monthly repayment situation...',
+    'Reviewing warranty fine print on your behalf...',
+    'Triangulating between want, need, and budget...',
+    'Calculating the fuel cost of your daily shame...',
+    'Modelling the three-point-turn radius...',
+    'Auditing the gap between spec sheet and reality...',
+    'Checking whether the infotainment system is tolerable...',
+    'Determining the precise shade of mid-life...',
+    'Parsing your priorities for internal inconsistencies...',
+    'Estimating annual insurance humiliation...',
+    'Cross-checking dimensions against your garage door...',
+    'Considering the long-term consequences...',
+    'Reconciling aspiration with sense...',
+    'Assessing whether the badge justifies the premium...',
+    'Computing the opportunity cost of heated seats...',
+    'Consulting the historical record on sporty SUVs...',
+    'Reviewing the evidence on seven-seat practicality...',
+    'Acknowledging the complexity of your situation...',
+  ];
+
+  useEffect(() => {
+    if (aiLoading) {
+      setLoadingMessage(AI_LOADING_MESSAGES[Math.floor(Math.random() * AI_LOADING_MESSAGES.length)]);
+    }
+  }, [aiLoading]);
 
   const AI_PLACEHOLDER_SUGGESTIONS = [
     'Family SUV under $80k with good fuel economy...',
@@ -45,20 +104,53 @@ export default function Discovery({
     'Luxury SUV for long highway trips...',
     '7-seater for school runs and weekend trips...',
   ];
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [placeholderVisible, setPlaceholderVisible] = useState(true);
   const [inputFocused, setInputFocused] = useState(false);
+  const [displayedText, setDisplayedText] = useState('');
+  const typewriterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (inputFocused || aiQuery) return;
-    const interval = setInterval(() => {
-      setPlaceholderVisible(false);
-      setTimeout(() => {
-        setPlaceholderIndex((i) => (i + 1) % AI_PLACEHOLDER_SUGGESTIONS.length);
-        setPlaceholderVisible(true);
-      }, 300);
-    }, 3000);
-    return () => clearInterval(interval);
+    if (inputFocused || aiQuery) {
+      if (typewriterTimer.current) clearTimeout(typewriterTimer.current);
+      setDisplayedText('');
+      return;
+    }
+
+    let suggestionIdx = 0;
+    let charIdx = 0;
+    let cancelled = false;
+
+    function type() {
+      if (cancelled) return;
+      const suggestion = AI_PLACEHOLDER_SUGGESTIONS[suggestionIdx];
+      if (charIdx < suggestion.length) {
+        charIdx++;
+        setDisplayedText(suggestion.slice(0, charIdx));
+        typewriterTimer.current = setTimeout(type, 50);
+      } else {
+        typewriterTimer.current = setTimeout(erase, 2000);
+      }
+    }
+
+    function erase() {
+      if (cancelled) return;
+      const suggestion = AI_PLACEHOLDER_SUGGESTIONS[suggestionIdx];
+      if (charIdx > 0) {
+        charIdx--;
+        setDisplayedText(suggestion.slice(0, charIdx));
+        typewriterTimer.current = setTimeout(erase, 30);
+      } else {
+        suggestionIdx = (suggestionIdx + 1) % AI_PLACEHOLDER_SUGGESTIONS.length;
+        typewriterTimer.current = setTimeout(type, 300);
+      }
+    }
+
+    type();
+
+    return () => {
+      cancelled = true;
+      if (typewriterTimer.current) clearTimeout(typewriterTimer.current);
+      setDisplayedText('');
+    };
   }, [inputFocused, aiQuery]);
 
   const [filters, setFilters] = useState<Filters>({
@@ -74,10 +166,6 @@ export default function Discovery({
   useEffect(() => {
     loadGarageState();
   }, []);
-
-  useEffect(() => {
-    console.log('[Discovery] vehicles loaded:', vehicles.length, vehicles[0]);
-  }, [vehicles]);
 
   const loadGarageState = () => {
     const garage = localStorage.getItem(STORAGE_KEYS.garageItems);
@@ -135,8 +223,6 @@ export default function Discovery({
     setAiResults([]);
     try {
       const results = await getAIRecommendations(aiQuery, vehicles);
-      console.log('[AI] recommendations:', results);
-      console.log('[AI] first vehicle id sample:', vehicles[0]?.id);
       setAiResults(results);
     } finally {
       setAiLoading(false);
@@ -187,15 +273,22 @@ export default function Discovery({
             <div className="flex-1 relative">
               <input
                 type="text"
-                placeholder={inputFocused || aiQuery ? '' : AI_PLACEHOLDER_SUGGESTIONS[placeholderIndex]}
                 value={aiQuery}
                 onChange={(e) => setAiQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') void handleAISearch(); }}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 disabled={aiLoading}
-                className={`w-full px-3 py-2 border border-slate-400 text-sm bg-white text-slate-900 focus:outline-none focus:border-slate-900 disabled:opacity-50 transition-opacity duration-300${placeholderVisible ? ' placeholder-slate-400' : ' placeholder-transparent'}`}
+                className="w-full px-3 py-2 border border-slate-400 text-sm bg-white text-slate-900 focus:outline-none focus:border-slate-900 disabled:opacity-50"
               />
+              {!inputFocused && !aiQuery && displayedText && (
+                <span
+                  className="absolute inset-0 px-3 py-2 text-sm text-slate-400 pointer-events-none select-none overflow-hidden whitespace-nowrap"
+                  aria-hidden="true"
+                >
+                  {displayedText}<span className="animate-pulse">|</span>
+                </span>
+              )}
             </div>
             <button
               onClick={() => void handleAISearch()}
@@ -491,8 +584,17 @@ export default function Discovery({
 
         {displayedVehicles.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-lg text-slate-600">No vehicles found matching your criteria</p>
-            <p className="text-sm text-slate-500 mt-2">Try adjusting your filters to see more results</p>
+            {aiLoading ? (
+              <>
+                <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full mx-auto mb-4 animate-spin" />
+                <p className="text-lg text-slate-600">{loadingMessage}</p>
+              </>
+            ) : (
+              <>
+                <p className="text-lg text-slate-600">No vehicles found matching your criteria</p>
+                <p className="text-sm text-slate-500 mt-2">Try adjusting your filters to see more results</p>
+              </>
+            )}
           </div>
         )}
       </div>

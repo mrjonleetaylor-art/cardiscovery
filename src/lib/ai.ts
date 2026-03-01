@@ -18,8 +18,6 @@ export async function getAIRecommendations(
   vehicles: StructuredVehicle[],
 ): Promise<AIRecommendation[]> {
   try {
-    console.log('[AI] payload size (bytes):', JSON.stringify({ query, vehicles }).length);
-
     const response = await fetch(FUNCTION_URL, {
       method: 'POST',
       headers: {

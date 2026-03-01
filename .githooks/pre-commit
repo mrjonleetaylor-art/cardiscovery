@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Collect staged .ts / .tsx files
+STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$' || true)
+
+if [ -z "$STAGED" ]; then
+  exit 0
+fi
+
+if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "[pre-commit] ANTHROPIC_API_KEY not set — skipping AI review"
+  exit 0
+fi
+
+export STAGED_FILES="$STAGED"
+
+node --input-type=module << 'NODEEOF'
+import { readFileSync, existsSync } from 'fs';
+
+const files = process.env.STAGED_FILES.split('\n').filter(f => f.trim());
+const apiKey = process.env.ANTHROPIC_API_KEY;
+
+const SYSTEM_PROMPT = `You are a code reviewer for CarDiscovery, a TypeScript React app.
+Review the provided file against these rules:
+- No AI logic in components (must live in src/lib/)
+- No new routing or global contexts introduced
+- No duplicate spec/vehicle logic outside StructuredVehicle
+- No loud colours, gradients, or emoji in JSX
+- No console.log left in production code (warn only)
+- TypeScript: no use of \`any\` without comment explaining why
+- Design: no large hero images in Comparison or Garage pages
+
+Respond in this format only:
+PASS or FAIL
+- bullet list of issues (if FAIL)
+- bullet list of warnings (optional)
+Keep it under 10 lines total.`;
+
+let hasFail = false;
+
+for (const file of files) {
+  if (!existsSync(file)) continue;
+
+  const content = readFileSync(file, 'utf8');
+  const pad = '─'.repeat(Math.max(2, 54 - file.length));
+  console.log(`\n── ${file} ${pad}`);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 256,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: `File: ${file}\n\n${content}` }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.log(`[skip] API error ${res.status}: ${errText.slice(0, 100)}`);
+      continue;
+    }
+
+    const data = await res.json();
+    const text = (data.content?.[0]?.text ?? '').trim();
+    console.log(text);
+
+    if (text.startsWith('FAIL')) {
+      hasFail = true;
+    }
+  } catch (err) {
+    console.log(`[skip] ${err.message}`);
+  }
+}
+
+if (hasFail) {
+  console.log('\n[pre-commit] One or more files flagged — review the output above.');
+  console.log('[pre-commit] Commit proceeding. Fix issues before next push.');
+}
+NODEEOF
