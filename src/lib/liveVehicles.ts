@@ -257,3 +257,4 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
     return a.year - b.year;
   });
 }
+
