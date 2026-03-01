@@ -233,7 +233,7 @@ export function adminVehicleToStructuredVehicle(
   // ── BASE trim ──────────────────────────────────────────────────────────────
   const baseTrim: Trim = {
     id: `${resolved.id}-default`,
-    name: friendlyTrimName(s, resolved.variant_code),
+    name: resolved.display_name ?? friendlyTrimName(s, resolved.variant_code),
     basePrice: resolved.price_aud ?? 0,
     specs: buildStructuredSpecs(resolved),
     packs: buildPacksForTrim(resolved, null, packVariants),
@@ -244,7 +244,7 @@ export function adminVehicleToStructuredVehicle(
     const resolvedVariant = resolveAdminVehicle(resolved, tv);
     return {
       id: tv.id,
-      name: friendlyTrimName(tv.specs, tv.variant_code),
+      name: tv.display_name ?? friendlyTrimName(tv.specs, tv.variant_code),
       basePrice: resolvedVariant.price_aud ?? 0,
       specs: buildStructuredSpecs(resolvedVariant),
       packs: buildPacksForTrim(resolved, tv.variant_code, packVariants),

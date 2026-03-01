@@ -9,6 +9,7 @@ const LIVE_VEHICLE_SELECT_COLUMNS = [
   'row_type',
   'base_id',
   'variant_code',
+  'display_name',
   'status',
   'archived_at',
   'last_import_id',
@@ -32,6 +33,7 @@ function rowToVehicle(row: RawVehicleRow): AdminVehicle {
     row_type: row.row_type as AdminVehicle['row_type'],
     base_id: row.base_id as string,
     variant_code: (row.variant_code as string) ?? null,
+    display_name: (row.display_name as string) ?? null,
     status: row.status as AdminVehicle['status'],
     archived_at: (row.archived_at as string) ?? null,
     last_import_id: (row.last_import_id as string) ?? null,
@@ -226,16 +228,21 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
     const structuredVehicle = adminVehicleToStructuredVehicle(resolved, packVariants);
 
     if (engineVariants.length > 0) {
-      const trims = [structuredVehicle.trims[0]];
+      const trims: StructuredVehicle['trims'] = [];
       for (const variant of engineVariants) {
         const resolvedVariant = resolveAdminVehicle(base, variant);
         const variantStructured = adminVehicleToStructuredVehicle(resolvedVariant, packVariants);
         trims.push({
           ...variantStructured.trims[0],
           id: variant.id,
-          name: variant.variant_code || variant.id,
+          name: variant.display_name ?? variant.variant_code ?? variant.id,
         });
       }
+      trims.sort((a, b) => {
+        const aPrice = a.basePrice ?? Number.POSITIVE_INFINITY;
+        const bPrice = b.basePrice ?? Number.POSITIVE_INFINITY;
+        return aPrice - bPrice;
+      });
       structuredVehicle.trims = trims;
     }
 

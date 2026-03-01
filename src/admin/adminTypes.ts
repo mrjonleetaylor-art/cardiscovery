@@ -21,6 +21,8 @@ export interface AdminVehicle {
   base_id: string;
   /** Null for BASE. Non-empty string for VARIANT (appended to base_id to form the VARIANT id). */
   variant_code: string | null;
+  /** Human-readable display name for this variant. Falls back to variant_code when null. */
+  display_name?: string | null;
   status: AdminVehicleStatus;
   archived_at: string | null;
   last_import_id: string | null;
