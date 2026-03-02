@@ -201,6 +201,9 @@ export function parseCsv(text: string): CsvParseResult {
       rowErrors.push(rowErr(rowNum, baseId || null, 'variant_code', 'VARIANT rows require a non-empty variant_code'));
     }
 
+    // display_name — optional human-readable label; blank = inherit auto-derived name
+    const displayName = v(raw, 'display_name') || null;
+
     // id — derive if blank
     let id = v(raw, 'id');
     if (!id) {
@@ -370,6 +373,7 @@ export function parseCsv(text: string): CsvParseResult {
       row_type: rowType,
       base_id: baseId,
       variant_code: variantCode,
+      display_name: displayName,
       make,
       model,
       year,
@@ -580,6 +584,7 @@ function csvRowToAdminVehicle(row: ValidatedCsvRow): AdminVehicle {
     row_type: row.row_type,
     base_id: row.base_id,
     variant_code: row.variant_code,
+    display_name: row.display_name,
     status: row.status ?? 'draft',
     archived_at: null,
     last_import_id: null,

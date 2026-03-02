@@ -105,6 +105,7 @@ export interface ValidatedCsvRow {
   row_type: AdminRowType;
   base_id: string;
   variant_code: string | null;
+  display_name: string | null;
   make: string;
   model: string;
   year: number;

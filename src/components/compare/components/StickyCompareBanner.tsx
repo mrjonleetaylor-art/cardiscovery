@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { Warehouse, X } from 'lucide-react';
 import { StructuredVehicle, ResolvedSpecs } from '../../../types/specs';
 import { TABLE_GRID } from '../sections/tableLayout';
@@ -35,6 +36,8 @@ export function StickyCompareBanner({
   onRemoveB,
   heroUrl1,
   heroUrl2,
+  slotA,
+  slotB,
 }: {
   v1: StructuredVehicle;
   v2: StructuredVehicle | null;
@@ -49,6 +52,8 @@ export function StickyCompareBanner({
   onRemoveB: () => void;
   heroUrl1?: string | null;
   heroUrl2?: string | null;
+  slotA?: ReactNode;
+  slotB?: ReactNode;
 }) {
   return (
     <div className="bg-white rounded-lg border-2 border-slate-200 overflow-hidden mb-6 sticky top-16 z-10 shadow-lg">
@@ -76,40 +81,43 @@ export function StickyCompareBanner({
                 {specs1?.selectedTrim.name && (
                   <p className="text-xs text-slate-500 truncate">{specs1.selectedTrim.name}</p>
                 )}
-                <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                <p className="text-2xl font-bold text-slate-900 mt-1">
                   ${specs1?.totalPrice.toLocaleString()}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-              <button
-                onClick={() => onToggleGarage(0)}
-                aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
-                className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
-              >
-                <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'sm')} />
-                {garageLabel(inGarage[0], selectionMatchesSaved[0])}
-              </button>
-              <button
-                onClick={() => onToggleGarage(0)}
-                aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
-                className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
-              >
-                <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'md')} />
-              </button>
-              <button
-                onClick={onChangeA}
-                className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
-              >
-                Change
-              </button>
-              <button
-                onClick={onRemoveA}
-                className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
-                title="Remove Car A"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-auto">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => onToggleGarage(0)}
+                  aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
+                  className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
+                >
+                  <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'sm')} />
+                  {garageLabel(inGarage[0], selectionMatchesSaved[0])}
+                </button>
+                <button
+                  onClick={() => onToggleGarage(0)}
+                  aria-label={garageLabel(inGarage[0], selectionMatchesSaved[0])}
+                  className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[0], selectionMatchesSaved[0])}`}
+                >
+                  <Warehouse className={garageIconClass(inGarage[0], selectionMatchesSaved[0], 'md')} />
+                </button>
+                <button
+                  onClick={onChangeA}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                >
+                  Change
+                </button>
+                <button
+                  onClick={onRemoveA}
+                  className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
+                  title="Remove Car A"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              {slotA}
             </div>
           </div>
         </div>
@@ -121,6 +129,7 @@ export function StickyCompareBanner({
               <p className="text-sm text-slate-400">No Car B selected</p>
             </div>
           ) : (
+            <>
             <div className="flex items-start flex-wrap gap-2">
               <div className="flex-1 min-w-0 flex gap-3">
                 {(heroUrl2 ?? v2.images[0]) && (
@@ -140,42 +149,46 @@ export function StickyCompareBanner({
                   {specs2?.selectedTrim.name && (
                     <p className="text-xs text-slate-500 truncate">{specs2.selectedTrim.name}</p>
                   )}
-                  <p className="text-base sm:text-lg font-bold text-slate-900 mt-0.5">
+                  <p className="text-2xl font-bold text-slate-900 mt-1">
                     ${specs2?.totalPrice.toLocaleString()}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
-                <button
-                  onClick={() => onToggleGarage(1)}
-                  aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
-                  className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
-                >
-                  <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'sm')} />
-                  {garageLabel(inGarage[1], selectionMatchesSaved[1])}
-                </button>
-                <button
-                  onClick={() => onToggleGarage(1)}
-                  aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
-                  className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
-                >
-                  <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'md')} />
-                </button>
-                <button
-                  onClick={onChangeB}
-                  className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
-                >
-                  Change
-                </button>
-                <button
-                  onClick={onRemoveB}
-                  className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
-                  title="Remove Car B"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex flex-col items-end gap-1.5 flex-shrink-0 ml-auto">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => onToggleGarage(1)}
+                    aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
+                    className={`hidden sm:flex text-xs px-2 py-1.5 rounded-lg border font-medium transition-all items-center gap-1 ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
+                  >
+                    <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'sm')} />
+                    {garageLabel(inGarage[1], selectionMatchesSaved[1])}
+                  </button>
+                  <button
+                    onClick={() => onToggleGarage(1)}
+                    aria-label={garageLabel(inGarage[1], selectionMatchesSaved[1])}
+                    className={`sm:hidden p-1.5 rounded-lg border transition-all ${garageButtonClass(inGarage[1], selectionMatchesSaved[1])}`}
+                  >
+                    <Warehouse className={garageIconClass(inGarage[1], selectionMatchesSaved[1], 'md')} />
+                  </button>
+                  <button
+                    onClick={onChangeB}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium"
+                  >
+                    Change
+                  </button>
+                  <button
+                    onClick={onRemoveB}
+                    className="p-1.5 rounded-lg border border-slate-300 text-slate-500 hover:bg-slate-50"
+                    title="Remove Car B"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {slotB}
               </div>
             </div>
+</>
           )}
         </div>
       </div>

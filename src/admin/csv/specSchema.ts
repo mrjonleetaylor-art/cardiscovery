@@ -106,6 +106,7 @@ export const REQUIRED_COLUMNS = [
   'row_type',
   'base_id',
   'variant_code',
+  'display_name',
   'id',
   'make',
   'model',

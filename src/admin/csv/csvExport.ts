@@ -35,6 +35,9 @@ function buildRow(vehicle: AdminVehicle): string {
       case 'variant_code':
         cells.push(csvCell(vehicle.variant_code ?? ''));
         break;
+      case 'display_name':
+        cells.push(csvCell(vehicle.display_name ?? ''));
+        break;
       case 'id':
         cells.push(csvCell(vehicle.id));
         break;

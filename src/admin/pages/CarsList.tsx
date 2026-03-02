@@ -105,11 +105,9 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
   useEffect(() => { load(); }, [statusFilter, showVariants]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Export ─────────────────────────────────────────────────────────────────
-  const handleExport = async () => {
+  const handleExport = () => {
     try {
-      // Export ALL statuses (full roundtrip including archived)
-      const all = await listVehicles({ statuses: ['draft', 'live', 'archived'], includeVariants: true });
-      const sorted = sortVehiclesForExport(all);
+      const sorted = sortVehiclesForExport(filteredVehicles);
       const csv = buildCsvContent(sorted);
       downloadCsv(csv, `carfinder-vehicles-${new Date().toISOString().slice(0, 10)}.csv`);
     } catch (e) {
@@ -376,7 +374,7 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
             className="h-9 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            Download CSV
+            Download CSV ({filteredVehicles.length})
           </button>
           <label className={`h-9 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors cursor-pointer ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
             <Upload className="w-3.5 h-3.5" />

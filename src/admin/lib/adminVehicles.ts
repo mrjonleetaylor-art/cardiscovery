@@ -22,6 +22,7 @@ function rowToVehicle(row: Record<string, unknown>): AdminVehicle {
     row_type: row.row_type as AdminVehicle['row_type'],
     base_id: row.base_id as string,
     variant_code: (row.variant_code as string) ?? null,
+    display_name: (row.display_name as string) ?? null,
     status: row.status as AdminVehicleStatus,
     archived_at: (row.archived_at as string) ?? null,
     last_import_id: (row.last_import_id as string) ?? null,

@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from '../lib/storageKeys';
 import { GarageProfileModal } from './garage/GarageProfileModal';
 import { GarageVehicleCard } from './garage/GarageVehicleCard';
 import { GaragePreferencesPanel } from './garage/GaragePreferencesPanel';
+import { FindDealerButton } from './leads/FindDealerButton';
 
 export default function GaragePage({ vehicles }: { vehicles: StructuredVehicle[] }) {
   const [garageVehicles, setGarageVehicles] = useState<StructuredVehicle[]>([]);
@@ -133,15 +134,27 @@ export default function GaragePage({ vehicles }: { vehicles: StructuredVehicle[]
           {garageVehicles.map((vehicle) => {
             const garageItem = garageItemsList.find(i => i.vehicleId === vehicle.id) ?? null;
             return (
-              <GarageVehicleCard
-                key={vehicle.id}
-                vehicle={vehicle}
-                garageItem={garageItem}
-                onOpen={(triggerEl) => {
-                  setFlyoutTriggerEl(triggerEl);
-                  setFlyoutVehicleId(vehicle.id);
-                }}
-              />
+              <div key={vehicle.id} className="flex flex-col">
+                <GarageVehicleCard
+                  vehicle={vehicle}
+                  garageItem={garageItem}
+                  onOpen={(triggerEl) => {
+                    setFlyoutTriggerEl(triggerEl);
+                    setFlyoutVehicleId(vehicle.id);
+                  }}
+                />
+                <div className="border border-t-0 border-slate-200 rounded-b-lg bg-white px-3 pb-3 pt-2 flex gap-2">
+                  <div className="flex-1">
+                    <FindDealerButton vehicle={vehicle} />
+                  </div>
+                  <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }))}
+                    className="px-4 py-2 rounded-lg font-medium transition-all border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-900 text-sm whitespace-nowrap"
+                  >
+                    Car A
+                  </button>
+                </div>
+              </div>
             );
           })}
         </div>

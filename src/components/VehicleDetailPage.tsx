@@ -4,8 +4,8 @@ import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
 import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfiguredVehicle';
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
-import { supabase } from '../lib/supabase';
 import { VehicleProfileContent } from './profile/VehicleProfileContent';
+import { FindDealerButton } from './leads/FindDealerButton';
 
 function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfigSelection): VehicleConfigSelection {
   const trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
@@ -33,8 +33,6 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
     packIds: [],
     selectedOptionsByGroup: {},
   });
-  const [showLeadForm, setShowLeadForm] = useState(false);
-
   useEffect(() => {
     const found = vehicles.find(v => v.id === vehicleId) ?? null;
     setVehicle(found);
@@ -161,12 +159,11 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
                     Compare
                   </button>
 
-                  <button
-                    onClick={() => setShowLeadForm(true)}
-                    className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
-                  >
-                    Get Offers
-                  </button>
+                  <FindDealerButton
+                    vehicle={vehicle}
+                    trim={resolvedData?.selectedTrim.name}
+                    price={resolvedData?.totalPrice}
+                  />
                 </div>
 
                 {vehicle.bestFor && vehicle.bestFor.length > 0 && (
@@ -202,143 +199,6 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
         </div>
       </div>
 
-      {showLeadForm && (
-        <LeadFormModal vehicle={vehicle} onClose={() => setShowLeadForm(false)} />
-      )}
-    </div>
-  );
-}
-
-function LeadFormModal({ vehicle, onClose }: { vehicle: StructuredVehicle; onClose: () => void }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    postcode: '',
-    contact_preference: 'email',
-    timeline: '2-6 weeks',
-    has_trade_in: false,
-    notes: '',
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const garageItems = JSON.parse(localStorage.getItem('garage_items') || '[]');
-
-    const lead = {
-      ...formData,
-      selected_vehicles: [{ id: vehicle.id, make: vehicle.make, model: vehicle.model }],
-      garage_vehicles: garageItems,
-      preferences: {},
-      lead_summary: `Interest in ${vehicle.year} ${vehicle.make} ${vehicle.model}`,
-    };
-
-    const { error } = await supabase.from('leads').insert([lead]);
-
-    if (error) {
-      console.error('Error submitting lead:', error);
-      alert('Error submitting inquiry. Please try again.');
-    } else {
-      alert('Thank you! A dealer will contact you soon.');
-      onClose();
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-lg w-full p-8 max-h-[90vh] overflow-y-auto">
-        <h3 className="text-2xl font-bold text-slate-900 mb-2">Get Offers</h3>
-        <p className="text-slate-600 mb-6">Connect with dealers who can provide competitive pricing for this vehicle</p>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Name</label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-              placeholder="Your full name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Email</label>
-            <input
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-              placeholder="your.email@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Postcode</label>
-            <input
-              type="text"
-              required
-              value={formData.postcode}
-              onChange={(e) => setFormData({ ...formData, postcode: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-              placeholder="2000"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Timeline</label>
-            <select
-              value={formData.timeline}
-              onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-            >
-              <option value="0-2 weeks">0-2 weeks</option>
-              <option value="2-6 weeks">2-6 weeks</option>
-              <option value="6+ weeks">6+ weeks</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              id="trade_in"
-              checked={formData.has_trade_in}
-              onChange={(e) => setFormData({ ...formData, has_trade_in: e.target.checked })}
-              className="w-5 h-5 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
-            />
-            <label htmlFor="trade_in" className="text-sm font-medium text-slate-900">I have a trade-in</label>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-900 mb-2">Additional Notes</label>
-            <textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
-              placeholder="Any specific requirements or questions..."
-            />
-          </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 border-2 border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 font-semibold transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-3 bg-slate-900 text-white rounded-lg hover:bg-slate-800 font-semibold transition-colors"
-            >
-              Submit
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   );
 }

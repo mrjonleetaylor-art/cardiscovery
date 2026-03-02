@@ -461,6 +461,17 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
             </Field>
           )}
           {form.row_type === 'VARIANT' && (
+            <Field label="Display name">
+              <input
+                type="text"
+                value={form.display_name ?? ''}
+                onChange={(e) => setField('display_name', e.target.value || null)}
+                placeholder="e.g. Long Range RWD"
+                className={INPUT}
+              />
+            </Field>
+          )}
+          {form.row_type === 'VARIANT' && (
             <Field label="Variant kind">
               <select
                 value={form.specs['admin_variant_kind'] ?? 'variant'}

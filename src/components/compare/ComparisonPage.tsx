@@ -11,6 +11,7 @@ import { VehicleConfigurationControls } from '../config/VehicleConfigurationCont
 import { useComparisonState } from './hooks/useComparisonState';
 import { StructuredVehicle } from '../../types/specs';
 import { getComparisonNarration, ComparisonNarration } from '../../lib/ai';
+import { LeadCaptureModal } from '../leads/LeadCaptureModal';
 
 const LOADING_MESSAGES = [
   'Comparing specs and value',
@@ -29,6 +30,7 @@ export default function ComparisonPage({
   prefillVehicleIdA?: string | null;
   prefillVehicleIdB?: string | null;
 }) {
+  const [dealerModalVehicle, setDealerModalVehicle] = useState<StructuredVehicle | null>(null);
   const [narrationTriggered, setNarrationTriggered] = useState(false);
   const [narration, setNarration] = useState<ComparisonNarration | null>(null);
   const [narrationLoading, setNarrationLoading] = useState(false);
@@ -119,6 +121,7 @@ export default function ComparisonPage({
   }, [narrationLoading, loadingMsgIndex, loadingDisplayText]);
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
       <div className="max-w-[1800px] mx-auto">
         <h1 className="text-4xl font-bold text-slate-900 mb-8">Vehicle Comparison</h1>
@@ -198,6 +201,22 @@ export default function ComparisonPage({
             onRemoveB={() => selectCarB(null)}
             heroUrl1={specs1?.heroImageUrl}
             heroUrl2={specs2?.heroImageUrl}
+            slotA={v2 ? (
+              <button
+                onClick={() => setDealerModalVehicle(v1)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:border-slate-900 hover:text-slate-900 font-medium transition-colors whitespace-nowrap"
+              >
+                Find dealers
+              </button>
+            ) : undefined}
+            slotB={v2 ? (
+              <button
+                onClick={() => setDealerModalVehicle(v2)}
+                className="text-xs px-3 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:border-slate-900 hover:text-slate-900 font-medium transition-colors whitespace-nowrap"
+              >
+                Find dealers
+              </button>
+            ) : undefined}
           />
         )}
 
@@ -404,5 +423,13 @@ export default function ComparisonPage({
         )}
       </div>
     </div>
+
+    {dealerModalVehicle && (
+      <LeadCaptureModal
+        vehicle={dealerModalVehicle}
+        onClose={() => setDealerModalVehicle(null)}
+      />
+    )}
+    </>
   );
 }
