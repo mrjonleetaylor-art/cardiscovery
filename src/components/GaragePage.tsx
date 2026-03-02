@@ -37,7 +37,9 @@ export default function GaragePage({ vehicles }: { vehicles: StructuredVehicle[]
 
   const loadPreferences = () => {
     const stored = localStorage.getItem(STORAGE_KEYS.userPreferences);
-    if (stored) setPreferences(JSON.parse(stored));
+    if (stored) {
+      try { setPreferences(JSON.parse(stored)); } catch { /* use defaults */ }
+    }
   };
 
   const savePreferences = async () => {

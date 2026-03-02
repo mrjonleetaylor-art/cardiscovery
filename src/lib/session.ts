@@ -50,7 +50,12 @@ export const getSessionId = (): string => {
 export const getGarageItems = (): GarageItem[] => {
   const raw = localStorage.getItem(STORAGE_KEYS.garageItems);
   if (!raw) return [];
-  const parsed = JSON.parse(raw);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
   // Migrate old format: string[] → GarageItem[]
   if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'string') {
     const migrated: GarageItem[] = (parsed as string[]).map(id => ({

@@ -107,6 +107,7 @@ export default function Discovery({
   const [inputFocused, setInputFocused] = useState(false);
   const [displayedText, setDisplayedText] = useState('');
   const typewriterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (inputFocused || aiQuery) {
@@ -169,7 +170,8 @@ export default function Discovery({
 
   const loadGarageState = () => {
     const garage = localStorage.getItem(STORAGE_KEYS.garageItems);
-    setGarageItems(garage ? JSON.parse(garage) : []);
+    if (!garage) { setGarageItems([]); return; }
+    try { setGarageItems(JSON.parse(garage)); } catch { setGarageItems([]); }
   };
 
   const makes = Array.from(new Set(vehicles.map(v => v.make))).sort();
@@ -217,16 +219,18 @@ export default function Discovery({
     return map;
   }, [aiResults]);
 
-  const handleAISearch = async () => {
-    if (!aiQuery.trim()) return;
-    setAiLoading(true);
-    setAiResults([]);
-    try {
-      const results = await getAIRecommendations(aiQuery, vehicles);
-      setAiResults(results);
-    } finally {
-      setAiLoading(false);
-    }
+  const handleAISearch = () => {
+    const q = aiQuery.trim();
+    if (q.length < 3) return;
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setAiLoading(true);
+      setAiResults([]);
+      getAIRecommendations(q, vehicles)
+        .then(results => setAiResults(results))
+        .catch(() => setAiResults([]))
+        .finally(() => setAiLoading(false));
+    }, 300);
   };
 
   const clearAI = () => {
@@ -274,8 +278,8 @@ export default function Discovery({
               <input
                 type="text"
                 value={aiQuery}
-                onChange={(e) => setAiQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') void handleAISearch(); }}
+                onChange={(e) => setAiQuery(e.target.value.slice(0, 200))}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAISearch(); }}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 disabled={aiLoading}
@@ -291,8 +295,8 @@ export default function Discovery({
               )}
             </div>
             <button
-              onClick={() => void handleAISearch()}
-              disabled={aiLoading || !aiQuery.trim()}
+              onClick={handleAISearch}
+              disabled={aiLoading || aiQuery.trim().length < 3}
               className={`flex items-center gap-2 px-4 py-2 border border-slate-400 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
             >
               {aiLoading ? 'Searching...' : (

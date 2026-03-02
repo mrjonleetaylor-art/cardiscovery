@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { DiscoveryPanel } from './panels/DiscoveryPanel';
 import { CarAExplorePanel } from './panels/CarAExplorePanel';
 import { VehicleHeroCard } from './panels/VehicleHeroCard';
@@ -9,7 +10,15 @@ import { TABLE_GRID, TABLE_CELL_PAD } from './sections/tableLayout';
 import { VehicleConfigurationControls } from '../config/VehicleConfigurationControls';
 import { useComparisonState } from './hooks/useComparisonState';
 import { StructuredVehicle } from '../../types/specs';
-import { getComparisonNarration } from '../../lib/ai';
+import { getComparisonNarration, ComparisonNarration } from '../../lib/ai';
+
+const LOADING_MESSAGES = [
+  'Comparing specs and value',
+  'Weighing fuel efficiency',
+  'Analysing safety ratings',
+  'Calculating the price difference',
+  'Forming a recommendation',
+];
 
 export default function ComparisonPage({
   vehicles,
@@ -20,8 +29,12 @@ export default function ComparisonPage({
   prefillVehicleIdA?: string | null;
   prefillVehicleIdB?: string | null;
 }) {
-  const [narration, setNarration] = useState('');
+  const [narrationTriggered, setNarrationTriggered] = useState(false);
+  const [narration, setNarration] = useState<ComparisonNarration | null>(null);
   const [narrationLoading, setNarrationLoading] = useState(false);
+  const [narrationVisible, setNarrationVisible] = useState(false);
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const [loadingDisplayText, setLoadingDisplayText] = useState('');
 
   const {
     selection,
@@ -60,23 +73,50 @@ export default function ComparisonPage({
     selectCarB,
   } = useComparisonState({ vehicles, prefillVehicleIdA, prefillVehicleIdB });
 
+  // Reset narration state whenever either vehicle changes
   useEffect(() => {
-    if (!v1 || !v2) {
-      setNarration('');
-      setNarrationLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setNarration('');
+    setNarrationTriggered(false);
+    setNarration(null);
+    setNarrationLoading(false);
+  }, [v1?.id, v2?.id]);
+
+  const handleTriggerNarration = () => {
+    if (!v1 || !v2) return;
+    setNarrationTriggered(true);
     setNarrationLoading(true);
     getComparisonNarration(v1, v2).then((text) => {
-      if (!cancelled) {
-        setNarration(text);
-        setNarrationLoading(false);
-      }
+      setNarration(text);
+      setNarrationLoading(false);
     });
-    return () => { cancelled = true; };
-  }, [v1?.id, v2?.id]);
+  };
+
+  useEffect(() => {
+    if (narration) {
+      const id = setTimeout(() => setNarrationVisible(true), 16);
+      return () => clearTimeout(id);
+    }
+    setNarrationVisible(false);
+  }, [narration]);
+
+  useEffect(() => {
+    if (!narrationLoading) {
+      setLoadingMsgIndex(0);
+      setLoadingDisplayText('');
+      return;
+    }
+    const msg = LOADING_MESSAGES[loadingMsgIndex % LOADING_MESSAGES.length];
+    if (loadingDisplayText.length < msg.length) {
+      const id = setTimeout(() => {
+        setLoadingDisplayText(msg.slice(0, loadingDisplayText.length + 1));
+      }, 30);
+      return () => clearTimeout(id);
+    }
+    const id = setTimeout(() => {
+      setLoadingMsgIndex((i) => i + 1);
+      setLoadingDisplayText('');
+    }, 1500);
+    return () => clearTimeout(id);
+  }, [narrationLoading, loadingMsgIndex, loadingDisplayText]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
@@ -164,18 +204,73 @@ export default function ComparisonPage({
         {/* Comparison sections */}
         {v1 && (
           <>
-            {/* AI Narrator — only when both vehicles loaded */}
-            {v1 && v2 && (narrationLoading || narration) && (
-              <div className="mb-4 bg-slate-900 rounded-lg p-6">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AI Analysis</p>
-                {narrationLoading ? (
-                  <div className="space-y-2 animate-pulse">
-                    <div className="h-4 bg-slate-700 rounded w-full" />
-                    <div className="h-4 bg-slate-700 rounded w-5/6" />
-                    <div className="h-4 bg-slate-700 rounded w-4/6" />
+            {/* AI Narrator — expands in place on click */}
+            {v1 && v2 && (
+              <div
+                className={`rounded-xl overflow-hidden transition-all duration-500 ease-in-out mb-4 ${
+                  narrationTriggered ? 'bg-slate-900 max-h-[800px]' : 'max-h-[120px]'
+                }`}
+              >
+                {!narrationTriggered ? (
+                  /* Collapsed: centered button pill in the comparison columns area */
+                  <div className={`grid ${TABLE_GRID} py-4`}>
+                    <div />
+                    <div className="col-span-2 flex justify-center">
+                      <button
+                        onClick={handleTriggerNarration}
+                        className="w-1/2 bg-slate-900 hover:bg-slate-800 rounded-xl px-6 py-5 flex items-center justify-center gap-3 transition-colors"
+                      >
+                        <span className="text-white text-base font-medium">Understand this comparison</span>
+                        <ChevronDown className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-white leading-relaxed">{narration}</p>
+                  /* Expanded: full dark card */
+                  <>
+                    <div className="flex items-center justify-between px-6 py-5">
+                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">AI Analysis</span>
+                      <ChevronDown className="w-5 h-5 text-slate-600 rotate-180" />
+                    </div>
+                    <div className={`grid ${TABLE_GRID}`}>
+                      <div />
+                      <div className="col-span-2 px-6 pb-6">
+                        {narrationLoading ? (
+                          <p className="text-base text-slate-400 text-center">
+                            {loadingDisplayText}<span className="animate-pulse">|</span>
+                          </p>
+                        ) : narration && (
+                          <div className={`transition-opacity duration-[600ms] ${narrationVisible ? 'opacity-100' : 'opacity-0'}`}>
+                            <p className="text-base font-medium text-white leading-snug mb-5">{narration.verdict}</p>
+                            <div className="grid grid-cols-2 gap-6 border-t border-slate-700 pt-4">
+                              <div>
+                                <p className="text-xs font-semibold text-slate-400 mb-2">{v1.make} {v1.model}</p>
+                                <ul className="space-y-1">
+                                  {narration.v1_wins.map((point, i) => (
+                                    <li key={i} className="text-sm text-white flex items-start gap-2">
+                                      <span className="text-slate-400 mt-px">+</span>
+                                      <span>{point}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-slate-400 mb-2">{v2.make} {v2.model}</p>
+                                <ul className="space-y-1">
+                                  {narration.v2_wins.map((point, i) => (
+                                    <li key={i} className="text-sm text-white flex items-start gap-2">
+                                      <span className="text-slate-400 mt-px">+</span>
+                                      <span>{point}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             )}

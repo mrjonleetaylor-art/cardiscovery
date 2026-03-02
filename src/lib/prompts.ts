@@ -28,15 +28,23 @@ export function buildComparisonPrompt(
     };
   };
 
-  return `You are an automotive analyst. A buyer is comparing two vehicles. Write 2-3 sentences of plain-English analysis about what the data means for a real buying decision. Cover which car wins on value, practicality, or performance, and who each is best suited for.
+  return `You are an automotive analyst. A buyer is comparing two vehicles. Analyse the data and return a structured verdict as valid JSON.
 
 Vehicle A: ${JSON.stringify(summarise(v1))}
 Vehicle B: ${JSON.stringify(summarise(v2))}
 
+Return this exact JSON shape:
+{
+  "v1_wins": ["Point one", "Point two", "Point three"],
+  "v2_wins": ["Point one", "Point two", "Point three"],
+  "verdict": "One sentence, two clauses separated by a full stop or period."
+}
+
 Rules:
-- Direct and analytical tone. No marketing language. No emoji.
-- 2-3 sentences only.
-- Plain text only — no JSON, no markdown, no bullet points, no headers.`;
+- verdict: one conversational sentence — a straight recommendation a knowledgeable friend would give. Name the specific features that matter and mention the price difference in dollars. No robotic phrasing like "suits buyers who prioritize". No marketing language. No emoji. Example: "For families, the CX-5 is the stronger buy — better fuel economy, higher towing capacity, and a premium sound system for just $1,410 more than the Tucson."
+- v1_wins: up to 3 advantages Vehicle A has over Vehicle B. Each point 3-5 words, plain English, no numbers.
+- v2_wins: up to 3 advantages Vehicle B has over Vehicle A. Each point 3-5 words, plain English, no numbers.
+- Return valid JSON only. No markdown fences, no preamble, no explanation outside the JSON.`;
 }
 
 /**

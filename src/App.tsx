@@ -14,6 +14,7 @@ type CarFinderWindowEventMap = {
   'garage-updated': Event;
   'view-vehicle': CustomEvent<{ vehicleId: string }>;
   'navigate-compare': Event | CustomEvent<{ vehicleId?: string }>;
+  'navigate-discovery': Event;
 };
 
 function addCarFinderEventListener<K extends keyof CarFinderWindowEventMap>(
@@ -78,6 +79,7 @@ function AppContent() {
     const handleViewVehicle = (event: CustomEvent) => {
       setSelectedVehicleId(event.detail.vehicleId);
       setCurrentPage('vehicle');
+      window.location.hash = `view=${encodeURIComponent(event.detail.vehicleId)}`;
     };
 
     const handleNavigateCompare = (event: CarFinderWindowEventMap['navigate-compare']) => {
@@ -88,12 +90,20 @@ function AppContent() {
       navigateToCompareHash(vehicleId, null);
     };
 
+    const handleNavigateDiscovery = () => {
+      setCurrentPage('discovery');
+      setSelectedVehicleId(null);
+      window.location.hash = 'discovery';
+    };
+
     addCarFinderEventListener('view-vehicle', handleViewVehicle);
     addCarFinderEventListener('navigate-compare', handleNavigateCompare);
+    addCarFinderEventListener('navigate-discovery', handleNavigateDiscovery);
 
     return () => {
       removeCarFinderEventListener('view-vehicle', handleViewVehicle);
       removeCarFinderEventListener('navigate-compare', handleNavigateCompare);
+      removeCarFinderEventListener('navigate-discovery', handleNavigateDiscovery);
     };
   }, []);
 
