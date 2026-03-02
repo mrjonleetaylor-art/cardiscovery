@@ -262,8 +262,8 @@ export default function Discovery({
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="mb-2">
-          <h1 className="text-4xl font-bold text-slate-900 mb-0">Discover Your Perfect Car</h1>
-          <p className="text-lg text-slate-600">Explore our curated selection and find what drives you</p>
+          <h1 className="text-4xl font-bold text-slate-900 mb-0">The Smarter Way to Choose Your Next Car</h1>
+          <p className="text-lg text-slate-600">Intelligent recommendations. Side-by-side comparisons. No guesswork.</p>
         </div>
 
         {/* AI search */}

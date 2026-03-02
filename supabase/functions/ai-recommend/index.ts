@@ -20,19 +20,53 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query, vehicles } = await req.json();
-
-    if (typeof query !== 'string' || !Array.isArray(vehicles)) {
-      return json({ error: 'Invalid request body' }, 400);
-    }
+    const body = await req.json() as Record<string, unknown>;
 
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!anthropicKey) {
       return json({ error: 'ANTHROPIC_API_KEY not configured' }, 500);
     }
 
+    // ── Narration request ──────────────────────────────────────────────────────
+    if (body.type === 'narration') {
+      const { prompt } = body;
+      if (typeof prompt !== 'string') {
+        return json({ error: 'Invalid narration request: prompt must be a string' }, 400);
+      }
+
+      const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+
+      if (!anthropicRes.ok) {
+        const errText = await anthropicRes.text();
+        return json({ error: errText }, anthropicRes.status);
+      }
+
+      const data = await anthropicRes.json();
+      const text: string = data.content?.[0]?.text ?? '';
+      return json({ text });
+    }
+
+    // ── Recommendation request (default) ───────────────────────────────────────
+    const { query, vehicles } = body as { query: unknown; vehicles: unknown };
+
+    if (typeof query !== 'string' || !Array.isArray(vehicles)) {
+      return json({ error: 'Invalid request body' }, 400);
+    }
+
     // Build condensed vehicle list — no full spec dump
-    const vehicleList = vehicles.map((v: Record<string, unknown>) => {
+    const vehicleList = (vehicles as Array<Record<string, unknown>>).map((v) => {
       const trims = v.trims as Array<Record<string, unknown>> | undefined;
       const trim0 = trims?.[0];
       const overview = (trim0?.specs as Record<string, unknown> | undefined)?.overview as Record<string, unknown> | undefined;

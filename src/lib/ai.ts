@@ -1,4 +1,5 @@
 import { StructuredVehicle } from '../types/specs';
+import { buildComparisonPrompt } from './prompts';
 
 export interface AIRecommendation {
   vehicleId: string;
@@ -51,5 +52,43 @@ export async function getAIRecommendations(
   } catch (err) {
     console.error('[AI] Request failed:', err);
     return [];
+  }
+}
+
+/**
+ * Calls the ai-recommend Edge Function to generate a plain-English comparison
+ * narration for two vehicles. Returns '' on any failure — never throws.
+ */
+export async function getComparisonNarration(
+  v1: StructuredVehicle,
+  v2: StructuredVehicle,
+): Promise<string> {
+  try {
+    const prompt = buildComparisonPrompt(v1, v2);
+    const response = await fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+      },
+      body: JSON.stringify({ type: 'narration', prompt }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[AI] Narration error:', response.status, errorText);
+      return '';
+    }
+
+    const data: unknown = await response.json();
+    if (typeof (data as Record<string, unknown>)?.text !== 'string') {
+      console.error('[AI] Unexpected narration response shape:', data);
+      return '';
+    }
+
+    return (data as { text: string }).text;
+  } catch (err) {
+    console.error('[AI] Narration request failed:', err);
+    return '';
   }
 }

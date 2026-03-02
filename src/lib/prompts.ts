@@ -1,6 +1,45 @@
 import { StructuredVehicle } from '../types/specs';
 
 /**
+ * Builds the prompt for the AI comparison narrator.
+ * Passes a condensed summary of each vehicle and instructs Claude to write
+ * 2-3 sentences of plain-English analysis.
+ */
+export function buildComparisonPrompt(
+  v1: StructuredVehicle,
+  v2: StructuredVehicle,
+): string {
+  const summarise = (v: StructuredVehicle) => {
+    const trim = v.trims[0];
+    const s = trim?.specs;
+    return {
+      vehicle: `${v.year} ${v.make} ${v.model}`,
+      trim: trim?.name ?? 'Base',
+      price: trim?.basePrice ? `$${trim.basePrice.toLocaleString()}` : 'unknown',
+      fuelType: s?.overview.fuelType ?? null,
+      drivetrain: s?.overview.drivetrain ?? null,
+      seats: s?.overview.seating ?? null,
+      fuelEconomy: s?.efficiency.fuelEconomy ?? null,
+      estimatedRange: s?.efficiency.estimatedRange ?? null,
+      annualRunningCost: s?.efficiency.annualRunningCost ?? null,
+      ancapRating: s?.safety.ancapRating ?? null,
+      bootSpace: s?.dimensions?.bootSpace ?? null,
+      towingCapacity: s?.dimensions?.towingCapacity ?? null,
+    };
+  };
+
+  return `You are an automotive analyst. A buyer is comparing two vehicles. Write 2-3 sentences of plain-English analysis about what the data means for a real buying decision. Cover which car wins on value, practicality, or performance, and who each is best suited for.
+
+Vehicle A: ${JSON.stringify(summarise(v1))}
+Vehicle B: ${JSON.stringify(summarise(v2))}
+
+Rules:
+- Direct and analytical tone. No marketing language. No emoji.
+- 2-3 sentences only.
+- Plain text only — no JSON, no markdown, no bullet points, no headers.`;
+}
+
+/**
  * Builds the prompt sent to Claude for vehicle recommendations.
  * Only passes a condensed vehicle summary — no full spec dump.
  */

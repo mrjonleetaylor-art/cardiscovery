@@ -35,7 +35,7 @@ export function resolveAdminVehicle(
   const resolvedSpecs: Record<string, string | null> = {};
   for (const def of SPEC_COLUMN_DEFS) {
     const vVal = variant.specs[def.key];
-    resolvedSpecs[def.key] = vVal !== null && vVal !== '' ? vVal : (base.specs[def.key] ?? null);
+    resolvedSpecs[def.key] = (vVal != null && vVal !== '') ? vVal : (base.specs[def.key] ?? null);
   }
 
   return {
@@ -135,6 +135,11 @@ function buildStructuredSpecs(r: ResolvedAdminVehicle): StructuredSpecs {
       airbags: s['spec_safety_airbags'] ? Number(s['spec_safety_airbags']) : undefined,
       rearCrossTraffic: s['spec_safety_rear_cross_traffic'] || undefined,
       safetySummary: s['spec_safety_safety_summary'] || undefined,
+    },
+    dimensions: {
+      bootSpace: s['spec_dimensions_boot_space'] || undefined,
+      towingCapacity: s['spec_dimensions_towing_capacity'] || undefined,
+      groundClearance: s['spec_dimensions_ground_clearance'] || undefined,
     },
   };
 }

@@ -23,7 +23,7 @@ export interface SpecColumnDef {
   /** Dot-path into StructuredSpecs (e.g. "overview.fuelType") or top-level key. */
   path: string;
   /** Form section grouping. */
-  category: 'overview' | 'efficiency' | 'performance' | 'connectivity' | 'safety' | 'narrative' | 'admin';
+  category: 'overview' | 'efficiency' | 'performance' | 'connectivity' | 'safety' | 'dimensions' | 'narrative' | 'admin';
   /** True if the field should render as a textarea in the admin form. */
   multiline?: boolean;
 }
@@ -76,6 +76,11 @@ export const SPEC_COLUMN_DEFS: SpecColumnDef[] = [
   { key: 'spec_safety_airbags',               label: 'Airbags',               path: 'safety.airbags',             category: 'safety' },
   { key: 'spec_safety_rear_cross_traffic',    label: 'Rear Cross Traffic',    path: 'safety.rearCrossTraffic',    category: 'safety' },
   { key: 'spec_safety_safety_summary',        label: 'Safety Summary',        path: 'safety.safetySummary',       category: 'safety', multiline: true },
+
+  // ── Dimensions ─────────────────────────────────────────────────────────────
+  { key: 'spec_dimensions_boot_space',       label: 'Boot Space',       path: 'dimensions.bootSpace',       category: 'dimensions' },
+  { key: 'spec_dimensions_towing_capacity',  label: 'Towing Capacity',  path: 'dimensions.towingCapacity',  category: 'dimensions' },
+  { key: 'spec_dimensions_ground_clearance', label: 'Ground Clearance', path: 'dimensions.groundClearance', category: 'dimensions' },
 
   // ── Narrative ──────────────────────────────────────────────────────────────
   { key: 'ai_summary',          label: 'AI Summary',                 path: 'ai_summary',          category: 'narrative', multiline: true },

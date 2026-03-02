@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { DiscoveryPanel } from './panels/DiscoveryPanel';
 import { CarAExplorePanel } from './panels/CarAExplorePanel';
 import { VehicleHeroCard } from './panels/VehicleHeroCard';
@@ -8,6 +9,7 @@ import { TABLE_GRID, TABLE_CELL_PAD } from './sections/tableLayout';
 import { VehicleConfigurationControls } from '../config/VehicleConfigurationControls';
 import { useComparisonState } from './hooks/useComparisonState';
 import { StructuredVehicle } from '../../types/specs';
+import { getComparisonNarration } from '../../lib/ai';
 
 export default function ComparisonPage({
   vehicles,
@@ -18,6 +20,9 @@ export default function ComparisonPage({
   prefillVehicleIdA?: string | null;
   prefillVehicleIdB?: string | null;
 }) {
+  const [narration, setNarration] = useState('');
+  const [narrationLoading, setNarrationLoading] = useState(false);
+
   const {
     selection,
     inGarage,
@@ -54,6 +59,24 @@ export default function ComparisonPage({
     selectCarA,
     selectCarB,
   } = useComparisonState({ vehicles, prefillVehicleIdA, prefillVehicleIdB });
+
+  useEffect(() => {
+    if (!v1 || !v2) {
+      setNarration('');
+      setNarrationLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setNarration('');
+    setNarrationLoading(true);
+    getComparisonNarration(v1, v2).then((text) => {
+      if (!cancelled) {
+        setNarration(text);
+        setNarrationLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [v1?.id, v2?.id]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
@@ -141,6 +164,22 @@ export default function ComparisonPage({
         {/* Comparison sections */}
         {v1 && (
           <>
+            {/* AI Narrator — only when both vehicles loaded */}
+            {v1 && v2 && (narrationLoading || narration) && (
+              <div className="mb-4 bg-slate-900 rounded-lg p-6">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">AI Analysis</p>
+                {narrationLoading ? (
+                  <div className="space-y-2 animate-pulse">
+                    <div className="h-4 bg-slate-700 rounded w-full" />
+                    <div className="h-4 bg-slate-700 rounded w-5/6" />
+                    <div className="h-4 bg-slate-700 rounded w-4/6" />
+                  </div>
+                ) : (
+                  <p className="text-sm text-white leading-relaxed">{narration}</p>
+                )}
+              </div>
+            )}
+
             {/* Trim & Options */}
             <ComparisonSection
               title="Trim & Options"
