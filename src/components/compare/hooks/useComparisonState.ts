@@ -82,6 +82,7 @@ export function useComparisonState({
     performance: true,
     connectivity: true,
     safety: true,
+    dimensions: true,
   });
 
   const selectCarA = (vehicle: StructuredVehicle | null) => {

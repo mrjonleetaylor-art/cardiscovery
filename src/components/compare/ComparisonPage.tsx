@@ -257,6 +257,15 @@ export default function ComparisonPage({
               <ComparisonRow label="Blind Spot Monitor" v1={specs1?.specs.safety.blindSpotMonitoring} v2={specs2?.specs.safety.blindSpotMonitoring} carBSelected={!!v2} />
               <ComparisonRow label="Rear Cross Traffic" v1={specs1?.specs.safety.rearCrossTraffic} v2={specs2?.specs.safety.rearCrossTraffic} carBSelected={!!v2} />
             </ComparisonSection>
+
+            {(specs1?.specs.dimensions?.bootSpace || specs1?.specs.dimensions?.towingCapacity || specs1?.specs.dimensions?.groundClearance ||
+              specs2?.specs.dimensions?.bootSpace || specs2?.specs.dimensions?.towingCapacity || specs2?.specs.dimensions?.groundClearance) && (
+              <ComparisonSection title="Dimensions" expanded={expandedSections.dimensions} onToggle={() => toggleSection('dimensions')}>
+                <ComparisonRow label="Boot Space" v1={specs1?.specs.dimensions?.bootSpace} v2={specs2?.specs.dimensions?.bootSpace} carBSelected={!!v2} />
+                <ComparisonRow label="Towing Capacity" v1={specs1?.specs.dimensions?.towingCapacity} v2={specs2?.specs.dimensions?.towingCapacity} carBSelected={!!v2} />
+                <ComparisonRow label="Ground Clearance" v1={specs1?.specs.dimensions?.groundClearance} v2={specs2?.specs.dimensions?.groundClearance} carBSelected={!!v2} />
+              </ComparisonSection>
+            )}
           </>
         )}
       </div>

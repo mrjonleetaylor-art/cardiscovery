@@ -52,12 +52,19 @@ export interface SafetySpecs {
   safetySummary?: string;
 }
 
+export interface DimensionsSpecs {
+  bootSpace?: string;
+  towingCapacity?: string;
+  groundClearance?: string;
+}
+
 export interface StructuredSpecs {
   overview: OverviewSpecs;
   efficiency: EfficiencySpecs;
   performance: PerformanceSpecs;
   connectivity: ConnectivitySpecs;
   safety: SafetySpecs;
+  dimensions?: DimensionsSpecs;
 }
 
 export interface SpecAdjustment {

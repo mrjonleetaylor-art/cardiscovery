@@ -26,7 +26,7 @@ export function VehicleProfileContent({
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroError, setHeroError] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(['trim-options', 'efficiency', 'performance', 'connectivity', 'safety']),
+    new Set(['trim-options', 'efficiency', 'performance', 'connectivity', 'safety', 'dimensions']),
   );
 
   const similarVehicles = useMemo(() => {
@@ -274,6 +274,21 @@ export function VehicleProfileContent({
           </div>
         </div>
       </AccordionSection>
+
+      {(specs?.dimensions?.bootSpace || specs?.dimensions?.towingCapacity || specs?.dimensions?.groundClearance) && (
+        <AccordionSection
+          title="Dimensions"
+          isExpanded={expandedSections.has('dimensions')}
+          onToggle={() => toggleSection('dimensions')}
+          compact={isModal}
+        >
+          <div className="space-y-4">
+            {specs?.dimensions?.bootSpace && <SpecRow label="Boot Space" value={specs.dimensions.bootSpace} />}
+            {specs?.dimensions?.towingCapacity && <SpecRow label="Towing Capacity" value={specs.dimensions.towingCapacity} />}
+            {specs?.dimensions?.groundClearance && <SpecRow label="Ground Clearance" value={specs.dimensions.groundClearance} />}
+          </div>
+        </AccordionSection>
+      )}
 
       {similarVehicles.length > 0 && (
         <div className={`bg-white rounded-xl ${isModal ? 'p-6 mt-4' : 'p-8 mt-6'}`}>
