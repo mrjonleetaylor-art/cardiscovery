@@ -109,6 +109,13 @@ export interface StructuredVehicle {
   subvariants?: import('./config').ConfigOption[];
   /** Dynamic configuration groups (single-select or multi-select). Replaces flat packs UX where used. */
   configGroups?: import('./config').ConfigGroup[];
+  /** EV charge times sourced from dedicated DB columns. */
+  chargeTimeAC?: string;
+  chargeTimeDC?: string;
+  /** Physical exterior dimensions sourced from dedicated DB columns. */
+  dimensionLength?: string;
+  dimensionWidth?: string;
+  dimensionHeight?: string;
 }
 
 export interface ResolvedSpecs {

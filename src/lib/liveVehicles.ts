@@ -25,6 +25,11 @@ const LIVE_VEHICLE_SELECT_COLUMNS = [
   'image_source',
   'license_note',
   'specs',
+  'spec_efficiency_charge_time_ac',
+  'spec_efficiency_charge_time_dc',
+  'spec_dimensions_length',
+  'spec_dimensions_width',
+  'spec_dimensions_height',
 ].join(',');
 
 function rowToVehicle(row: RawVehicleRow): AdminVehicle {
@@ -200,7 +205,11 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
   if (baseResp.error) throw baseResp.error;
   if (variantResp.error) throw variantResp.error;
 
-  const baseRows = (baseResp.data ?? []).map((row) => rowToVehicle(row as unknown as RawVehicleRow));
+  const rawBaseRows = (baseResp.data ?? []) as unknown as RawVehicleRow[];
+  const baseRows = rawBaseRows.map((row) => rowToVehicle(row));
+  const rawBaseById = new Map<string, RawVehicleRow>();
+  for (const row of rawBaseRows) rawBaseById.set(row.id as string, row);
+
   const variantRows = (variantResp.data ?? []).map((row) => rowToVehicle(row as unknown as RawVehicleRow));
 
   const variantsByBaseId = new Map<string, AdminVehicle[]>();
@@ -226,6 +235,16 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
 
     const resolved = resolveAdminVehicle(base, defaultEngineVariant);
     const structuredVehicle = adminVehicleToStructuredVehicle(resolved, packVariants);
+
+    const rawBase = rawBaseById.get(base.id);
+    if (rawBase) {
+      const str = (v: unknown) => (v ? String(v) : undefined);
+      structuredVehicle.chargeTimeAC = str(rawBase.spec_efficiency_charge_time_ac);
+      structuredVehicle.chargeTimeDC = str(rawBase.spec_efficiency_charge_time_dc);
+      structuredVehicle.dimensionLength = str(rawBase.spec_dimensions_length);
+      structuredVehicle.dimensionWidth = str(rawBase.spec_dimensions_width);
+      structuredVehicle.dimensionHeight = str(rawBase.spec_dimensions_height);
+    }
 
     if (engineVariants.length > 0) {
       const trims: StructuredVehicle['trims'] = [];

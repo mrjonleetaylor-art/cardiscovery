@@ -49,6 +49,13 @@ export interface AdminVehicle {
    * Null means blank/not set. For VARIANT rows null = inherit from BASE.
    */
   specs: Record<string, string | null>;
+
+  // Top-level columns (not in JSONB)
+  spec_efficiency_charge_time_ac?: string | null;
+  spec_efficiency_charge_time_dc?: string | null;
+  spec_dimensions_length?: number | null;
+  spec_dimensions_width?: number | null;
+  spec_dimensions_height?: number | null;
 }
 
 /** AdminVehicle with all VARIANT blanks resolved against its BASE. */

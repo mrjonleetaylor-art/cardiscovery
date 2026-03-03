@@ -166,6 +166,45 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
                   />
                 </div>
 
+                {(() => {
+                  const fuelType = resolvedData?.specs.overview.fuelType ?? '';
+                  const isEV = fuelType.toLowerCase().includes('electric') ||
+                    (vehicle.tags ?? []).some(t => /ev|electric/i.test(t));
+                  return isEV && (vehicle.chargeTimeAC || vehicle.chargeTimeDC) ? (
+                    <div className="mt-6 pt-6 border-t border-slate-200">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Charging</h4>
+                      <div className="space-y-2">
+                        {vehicle.chargeTimeAC && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-slate-600">AC (home)</span>
+                            <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeAC}</span>
+                          </div>
+                        )}
+                        {vehicle.chargeTimeDC && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-slate-600">DC (fast)</span>
+                            <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeDC}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {(vehicle.dimensionLength || vehicle.dimensionWidth || vehicle.dimensionHeight) && (
+                  <div className="mt-6 pt-6 border-t border-slate-200">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3">Dimensions</h4>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-slate-600">L × W × H</span>
+                      <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                        {[vehicle.dimensionLength, vehicle.dimensionWidth, vehicle.dimensionHeight]
+                          .map(v => v ?? '—')
+                          .join(' × ')} mm
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {vehicle.bestFor && vehicle.bestFor.length > 0 && (
                   <div className="mt-6 pt-6 border-t border-slate-200">
                     <h4 className="text-sm font-semibold text-slate-900 mb-3">Best For</h4>

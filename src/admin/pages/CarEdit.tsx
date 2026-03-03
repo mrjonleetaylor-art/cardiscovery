@@ -51,6 +51,11 @@ const EMPTY_FORM: FormData = {
   image_source: null,
   license_note: null,
   specs: Object.fromEntries(SPEC_COLUMNS.map((k) => [k, null])),
+  spec_efficiency_charge_time_ac: null,
+  spec_efficiency_charge_time_dc: null,
+  spec_dimensions_length: null,
+  spec_dimensions_width: null,
+  spec_dimensions_height: null,
 };
 
 // Form section accordion
@@ -590,7 +595,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         </Section>
 
         {/* ── Spec sections — generated from schema ────────────────────────── */}
-        {(['overview', 'efficiency', 'performance', 'connectivity', 'safety', 'narrative'] as const).map((cat) => {
+        {(['overview', 'efficiency', 'performance', 'connectivity', 'safety', 'narrative', 'dimensions'] as const).map((cat) => {
           const cols = SPEC_COLUMN_DEFS.filter((d) => d.category === cat);
           const catTitle = cat.charAt(0).toUpperCase() + cat.slice(1);
           return (
@@ -636,6 +641,62 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                   </Field>
                 );
               })}
+              {cat === 'efficiency' && (
+                <>
+                  <Field label="Charge time AC">
+                    <input
+                      type="text"
+                      value={form.spec_efficiency_charge_time_ac ?? ''}
+                      onChange={(e) => setField('spec_efficiency_charge_time_ac', e.target.value || null)}
+                      placeholder="e.g. 8h (7.2kW)"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="Charge time DC">
+                    <input
+                      type="text"
+                      value={form.spec_efficiency_charge_time_dc ?? ''}
+                      onChange={(e) => setField('spec_efficiency_charge_time_dc', e.target.value || null)}
+                      placeholder="e.g. 30min (150kW)"
+                      className={INPUT}
+                    />
+                  </Field>
+                </>
+              )}
+              {cat === 'dimensions' && (
+                <>
+                  <Field label="Length (mm)">
+                    <input
+                      type="number"
+                      value={form.spec_dimensions_length ?? ''}
+                      onChange={(e) => setField('spec_dimensions_length', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="e.g. 4650"
+                      className={INPUT}
+                      min={0}
+                    />
+                  </Field>
+                  <Field label="Width (mm)">
+                    <input
+                      type="number"
+                      value={form.spec_dimensions_width ?? ''}
+                      onChange={(e) => setField('spec_dimensions_width', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="e.g. 1850"
+                      className={INPUT}
+                      min={0}
+                    />
+                  </Field>
+                  <Field label="Height (mm)">
+                    <input
+                      type="number"
+                      value={form.spec_dimensions_height ?? ''}
+                      onChange={(e) => setField('spec_dimensions_height', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="e.g. 1450"
+                      className={INPUT}
+                      min={0}
+                    />
+                  </Field>
+                </>
+              )}
             </Section>
           );
         })}

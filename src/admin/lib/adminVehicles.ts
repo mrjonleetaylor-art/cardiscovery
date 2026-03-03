@@ -38,6 +38,11 @@ function rowToVehicle(row: Record<string, unknown>): AdminVehicle {
     image_source: (row.image_source as string) ?? null,
     license_note: (row.license_note as string) ?? null,
     specs: (row.specs as Record<string, string | null>) ?? {},
+    spec_efficiency_charge_time_ac: (row.spec_efficiency_charge_time_ac as string) ?? null,
+    spec_efficiency_charge_time_dc: (row.spec_efficiency_charge_time_dc as string) ?? null,
+    spec_dimensions_length: (row.spec_dimensions_length as number) ?? null,
+    spec_dimensions_width: (row.spec_dimensions_width as number) ?? null,
+    spec_dimensions_height: (row.spec_dimensions_height as number) ?? null,
   };
 }
 
