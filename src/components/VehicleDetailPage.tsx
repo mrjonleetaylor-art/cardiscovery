@@ -6,7 +6,7 @@ import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfigu
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
 import { VehicleProfileContent } from './profile/VehicleProfileContent';
 import { FindDealerButton } from './leads/FindDealerButton';
-import { resolvePrice } from '../lib/statePrice';
+import { labelFor, FUEL_TYPES, DRIVETRAINS, TRANSMISSIONS, BODY_TYPES } from '../admin/lib/enums';
 
 function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfigSelection): VehicleConfigSelection {
   const trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
@@ -25,7 +25,7 @@ interface VehicleDetailPageProps {
   selectedState: string;
 }
 
-export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selectedState }: VehicleDetailPageProps) {
+export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selectedState: _selectedState }: VehicleDetailPageProps) {
   const [vehicle, setVehicle] = useState<StructuredVehicle | null>(null);
   const [inGarage, setInGarage] = useState(false);
   const [selection, setSelection] = useState<VehicleConfigSelection>({
@@ -53,6 +53,25 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selecte
     if (!vehicle) return null;
     return resolveConfiguredVehicle(vehicle, sanitizeProfileSelection(vehicle, selection));
   }, [vehicle, selection]);
+
+  const labeledResolvedData: ResolvedVehicle | null = useMemo(() => {
+    if (!resolvedData) return null;
+    const ov = resolvedData.specs.overview;
+    return {
+      ...resolvedData,
+      specs: {
+        ...resolvedData.specs,
+        overview: {
+          ...ov,
+          fuelType: labelFor(ov.fuelType, FUEL_TYPES) || ov.fuelType,
+          drivetrain: labelFor(ov.drivetrain, DRIVETRAINS) || ov.drivetrain,
+          transmission: labelFor(ov.transmission, TRANSMISSIONS) || ov.transmission,
+        },
+      },
+    };
+  }, [resolvedData]);
+
+  void BODY_TYPES; // imported for completeness; body_type is not a spec path in this component
 
   useEffect(() => {
     const refresh = () => setInGarage(isInGarage(vehicleId));
@@ -115,7 +134,7 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selecte
               vehicle={vehicle}
               allVehicles={vehicles}
               selection={selection}
-              resolvedData={resolvedData}
+              resolvedData={labeledResolvedData}
               onSelectionChange={(patch) => setSelection((prev) => ({ ...prev, ...patch }))}
               mode="page"
               showTrimOptions={true}
@@ -135,7 +154,7 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selecte
                 <div className="mb-6">
                   <div className="text-sm text-slate-600 mb-1">Price</div>
                   <div className="text-3xl font-bold text-slate-900">
-                    {resolvedData ? `$${(resolvePrice(vehicle, selectedState) ?? resolvedData.totalPrice).toLocaleString()}` : '—'}
+                    {resolvedData ? `$${resolvedData.totalPrice.toLocaleString()}` : '—'}
                   </div>
                 </div>
 

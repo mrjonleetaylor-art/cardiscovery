@@ -38,10 +38,10 @@ export const FUEL_TYPES: EnumOption[] = [
 ];
 
 export const DRIVETRAINS: EnumOption[] = [
-  { value: 'fwd', label: 'FWD', synonyms: ['front wheel drive', 'front-wheel drive'] },
-  { value: 'rwd', label: 'RWD', synonyms: ['rear wheel drive', 'rear-wheel drive'] },
-  { value: 'awd', label: 'AWD', synonyms: ['all wheel drive', 'all-wheel drive'] },
-  { value: 'four_wd', label: '4WD', synonyms: ['4wd', '4x4', 'four wheel drive', 'four-wheel drive'] },
+  { value: 'fwd', label: 'Front Wheel Drive', synonyms: ['fwd', 'front wheel drive', 'front-wheel drive'] },
+  { value: 'rwd', label: 'Rear Wheel Drive', synonyms: ['rwd', 'rear wheel drive', 'rear-wheel drive'] },
+  { value: 'awd', label: 'All Wheel Drive', synonyms: ['awd', 'all wheel drive', 'all-wheel drive'] },
+  { value: 'four_wd', label: 'Four Wheel Drive', synonyms: ['4wd', '4x4', 'four wheel drive', 'four-wheel drive'] },
 ];
 
 export const TRANSMISSIONS: EnumOption[] = [
@@ -62,11 +62,11 @@ export const TRANSMISSIONS: EnumOption[] = [
       'automatic (6-speed)',
     ],
   },
-  { value: 'dct', label: 'DCT', synonyms: ['dual clutch', 'dual-clutch', 'dual clutch transmission'] },
+  { value: 'dct', label: 'Dual Clutch', synonyms: ['dct', 'dual clutch', 'dual-clutch', 'dual clutch transmission'] },
   { value: 'cvt', label: 'CVT', synonyms: ['continuously variable', 'continuously variable transmission'] },
   {
     value: 'single_speed',
-    label: 'Single-speed',
+    label: 'Single Speed',
     synonyms: ['single speed', 'single-speed automatic', 'single-speed direct drive', '1-speed', '1 speed'],
   },
 ];
