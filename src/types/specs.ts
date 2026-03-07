@@ -116,6 +116,8 @@ export interface StructuredVehicle {
   dimensionLength?: string;
   dimensionWidth?: string;
   dimensionHeight?: string;
+  /** Per-state drive-away prices keyed by state code e.g. { NSW: 45990, VIC: 46490 }. */
+  statePrices?: Record<string, number>;
 }
 
 export interface ResolvedSpecs {

@@ -71,6 +71,24 @@ function buildRow(vehicle: AdminVehicle): string {
       case 'license_note':
         cells.push(csvCell(vehicle.license_note ?? ''));
         break;
+      case 'state_prices':
+        cells.push(csvCell(JSON.stringify((vehicle as unknown as Record<string, unknown>).state_prices ?? null)));
+        break;
+      case 'spec_efficiency_charge_time_ac':
+        cells.push(csvCell(vehicle.spec_efficiency_charge_time_ac ?? ''));
+        break;
+      case 'spec_efficiency_charge_time_dc':
+        cells.push(csvCell(vehicle.spec_efficiency_charge_time_dc ?? ''));
+        break;
+      case 'spec_dimensions_length':
+        cells.push(csvCell(vehicle.spec_dimensions_length ?? ''));
+        break;
+      case 'spec_dimensions_width':
+        cells.push(csvCell(vehicle.spec_dimensions_width ?? ''));
+        break;
+      case 'spec_dimensions_height':
+        cells.push(csvCell(vehicle.spec_dimensions_height ?? ''));
+        break;
 
       default:
         // Spec / narrative / admin columns

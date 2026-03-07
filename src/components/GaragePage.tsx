@@ -11,7 +11,7 @@ import { GarageVehicleCard } from './garage/GarageVehicleCard';
 import { GaragePreferencesPanel } from './garage/GaragePreferencesPanel';
 import { FindDealerButton } from './leads/FindDealerButton';
 
-export default function GaragePage({ vehicles }: { vehicles: StructuredVehicle[] }) {
+export default function GaragePage({ vehicles, selectedState: _selectedState }: { vehicles: StructuredVehicle[]; selectedState: string }) {
   const [garageVehicles, setGarageVehicles] = useState<StructuredVehicle[]>([]);
   const [garageItemsList, setGarageItemsList] = useState<GarageItem[]>([]);
   const [flyoutVehicleId, setFlyoutVehicleId] = useState<string | null>(null);

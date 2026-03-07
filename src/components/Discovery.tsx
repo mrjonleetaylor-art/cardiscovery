@@ -7,6 +7,7 @@ import { STORAGE_KEYS } from '../lib/storageKeys';
 import { getDisplayProps } from './compare/utils/display';
 import { StructuredVehicle } from '../types/specs';
 import { getAIRecommendations, AIRecommendation } from '../lib/ai';
+import { resolvePrice } from '../lib/statePrice';
 
 interface Filters {
   make: string;
@@ -23,12 +24,14 @@ export default function Discovery({
   compareV2Id,
   onSetCompareV1,
   onSetCompareV2AndNavigate,
+  selectedState,
 }: {
   vehicles: StructuredVehicle[];
   compareV1Id: string | null;
   compareV2Id: string | null;
   onSetCompareV1: (vehicleId: string) => void;
   onSetCompareV2AndNavigate: (vehicleId: string) => void;
+  selectedState: string;
 }) {
   const [garageItems, setGarageItems] = useState<string[]>([]);
   const [compareWarningId, setCompareWarningId] = useState<string | null>(null);
@@ -518,7 +521,7 @@ export default function Discovery({
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-slate-900">
-                        ${basePrice.toLocaleString()}
+                        ${(resolvePrice(vehicle, selectedState) ?? basePrice).toLocaleString()}
                       </p>
                       {vehicle.trims.length > 1 && (
                         <p className="text-xs text-slate-500">+ options</p>

@@ -165,6 +165,13 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
   const [addPackError, setAddPackError] = useState<string | null>(null);
   const [addPackSaving, setAddPackSaving] = useState(false);
 
+  const [statePricesForm, setStatePricesForm] = useState<Record<string, number | ''>>({});
+
+  const setStatePrice = (state: string, value: string) => {
+    const num = value === '' ? '' : parseInt(value, 10);
+    setStatePricesForm((prev) => ({ ...prev, [state]: isNaN(num as number) ? '' : num }));
+  };
+
   const [showResolved, setShowResolved] = useState(false);
   const resolved = baseVehicle && form.row_type === 'VARIANT'
     ? resolveAdminVehicle(baseVehicle, form as AdminVehicle)
@@ -186,6 +193,8 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         SPEC_COLUMNS.map((k) => [k, v.specs[k] ?? null])
       );
       setForm({ ...v, specs });
+      const sp = (v as unknown as Record<string, unknown>).state_prices as Record<string, number> | null;
+      setStatePricesForm(sp ? Object.fromEntries(Object.entries(sp).map(([k, val]) => [k, val])) : {});
 
       if (v.row_type === 'BASE') {
         const vars = await getVariantsForBase(v.id);
@@ -263,15 +272,21 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       if (!payload.year) { setSaveError('Year is required.'); return; }
       if (!payload.body_type) { setSaveError('Body type is required.'); return; }
 
+      const statePricesFinal = Object.fromEntries(
+        Object.entries(statePricesForm).filter(([, v]) => v !== '' && v !== 0)
+      );
+      const statePricesValue = Object.keys(statePricesFinal).length > 0 ? statePricesFinal : null;
+
       if (isNew) {
-        await createVehicle(payload);
+        await createVehicle({ ...payload, state_prices: statePricesValue } as typeof payload);
         onNavigate(returnToList);
       } else {
         await updateVehicle(vehicleId!, {
           ...payload,
           // For BASE rows, ensure id == base_id
           base_id: payload.row_type === 'BASE' ? payload.id : payload.base_id,
-        });
+          state_prices: statePricesValue,
+        } as typeof payload);
         onNavigate(returnToList);
       }
     } catch (e) {
@@ -560,6 +575,26 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               </p>
             )}
           </Field>
+        </Section>
+
+        {/* ── Drive Away Pricing by State ──────────────────────────────────── */}
+        <Section title="Drive Away Pricing by State" defaultOpen={false}>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            {(['ACT','NSW','NT','QLD','SA','TAS','VIC','WA'] as const).map((state) => (
+              <div key={state}>
+                <label className="block text-xs font-medium text-slate-500 mb-1">{state}</label>
+                <input
+                  type="number"
+                  value={statePricesForm[state] ?? ''}
+                  onChange={(e) => setStatePrice(state, e.target.value)}
+                  placeholder="—"
+                  className={INPUT}
+                  min={0}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 mt-3">Drive-away price in AUD per state. Leave blank to omit that state from the saved object.</p>
         </Section>
 
         {/* ── Images ───────────────────────────────────────────────────────── */}

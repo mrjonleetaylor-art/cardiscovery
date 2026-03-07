@@ -8,6 +8,7 @@ import GaragePage from './components/GaragePage';
 import { AdminApp } from './admin/AdminApp';
 import { StructuredVehicle } from './types/specs';
 import { fetchLiveVehicles } from './lib/liveVehicles';
+import { useStatePrice } from './lib/statePrice';
 console.log("BUILD_COMMIT", import.meta.env.VITE_BUILD_COMMIT);
 
 type CarFinderWindowEventMap = {
@@ -38,6 +39,7 @@ function AppContent() {
   const [compareV2Id, setCompareV2Id] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<StructuredVehicle[]>([]);
   const [isLoadingVehicles, setIsLoadingVehicles] = useState(true);
+  const [selectedState, setSelectedState] = useStatePrice();
 
   const decodeHashParam = (value: string): string => {
     try {
@@ -190,7 +192,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation onNavigate={handleNavigate} currentPage={currentPage} />
+      <Navigation onNavigate={handleNavigate} currentPage={currentPage} selectedState={selectedState} onStateChange={setSelectedState} />
 
       {isLoadingVehicles ? (
         <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
@@ -207,6 +209,7 @@ function AppContent() {
               compareV2Id={compareV2Id}
               onSetCompareV1={setCompareV1}
               onSetCompareV2AndNavigate={setCompareV2AndNavigate}
+              selectedState={selectedState}
             />
           )}
           {currentPage === 'vehicle' && selectedVehicleId && (
@@ -214,6 +217,7 @@ function AppContent() {
               vehicleId={selectedVehicleId}
               vehicles={vehicles}
               onBack={() => setCurrentPage('discovery')}
+              selectedState={selectedState}
             />
           )}
           {currentPage === 'compare' && (
@@ -223,7 +227,7 @@ function AppContent() {
               prefillVehicleIdB={compareV2Id}
             />
           )}
-          {currentPage === 'garage' && <GaragePage vehicles={vehicles} />}
+          {currentPage === 'garage' && <GaragePage vehicles={vehicles} selectedState={selectedState} />}
         </>
       )}
     </div>

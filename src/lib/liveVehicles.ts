@@ -30,6 +30,7 @@ const LIVE_VEHICLE_SELECT_COLUMNS = [
   'spec_dimensions_length',
   'spec_dimensions_width',
   'spec_dimensions_height',
+  'state_prices',
 ].join(',');
 
 function rowToVehicle(row: RawVehicleRow): AdminVehicle {
@@ -54,6 +55,11 @@ function rowToVehicle(row: RawVehicleRow): AdminVehicle {
     image_source: (row.image_source as string) ?? null,
     license_note: (row.license_note as string) ?? null,
     specs: (row.specs as Record<string, string | null>) ?? {},
+    spec_efficiency_charge_time_ac: (row.spec_efficiency_charge_time_ac as string) ?? null,
+    spec_efficiency_charge_time_dc: (row.spec_efficiency_charge_time_dc as string) ?? null,
+    spec_dimensions_length: (row.spec_dimensions_length as number) ?? null,
+    spec_dimensions_width: (row.spec_dimensions_width as number) ?? null,
+    spec_dimensions_height: (row.spec_dimensions_height as number) ?? null,
   };
 }
 
@@ -244,10 +250,18 @@ export async function fetchLiveVehicles(): Promise<StructuredVehicle[]> {
       structuredVehicle.dimensionLength = str(rawBase.spec_dimensions_length);
       structuredVehicle.dimensionWidth = str(rawBase.spec_dimensions_width);
       structuredVehicle.dimensionHeight = str(rawBase.spec_dimensions_height);
+      if (rawBase.state_prices && typeof rawBase.state_prices === 'object') {
+        structuredVehicle.statePrices = rawBase.state_prices as Record<string, number>;
+      }
     }
 
     if (engineVariants.length > 0) {
       const trims: StructuredVehicle['trims'] = [];
+      trims.push({
+        ...structuredVehicle.trims[0],
+        id: base.id,
+        name: base.display_name ?? base.variant_code ?? 'Base',
+      });
       for (const variant of engineVariants) {
         const resolvedVariant = resolveAdminVehicle(base, variant);
         const variantStructured = adminVehicleToStructuredVehicle(resolvedVariant, packVariants);

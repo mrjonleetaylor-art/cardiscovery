@@ -114,10 +114,16 @@ export const REQUIRED_COLUMNS = [
   'body_type',
   'status',
   'price_aud',
+  'state_prices',
   'cover_image_url',
   'gallery_image_urls',
   'image_source',
   'license_note',
+  'spec_efficiency_charge_time_ac',
+  'spec_efficiency_charge_time_dc',
+  'spec_dimensions_length',
+  'spec_dimensions_width',
+  'spec_dimensions_height',
 ] as const;
 
 /** Spec column keys in declared order. */

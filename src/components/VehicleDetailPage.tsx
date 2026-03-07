@@ -6,6 +6,7 @@ import { resolveConfiguredVehicle, ResolvedVehicle } from '../lib/resolveConfigu
 import { upsertGarageItem, removeGarageItem, isInGarage, doesSavedSelectionMatch } from '../lib/session';
 import { VehicleProfileContent } from './profile/VehicleProfileContent';
 import { FindDealerButton } from './leads/FindDealerButton';
+import { resolvePrice } from '../lib/statePrice';
 
 function sanitizeProfileSelection(vehicle: StructuredVehicle, sel: VehicleConfigSelection): VehicleConfigSelection {
   const trim = vehicle.trims.find(t => t.id === sel.trimId) ?? vehicle.trims[0];
@@ -21,9 +22,10 @@ interface VehicleDetailPageProps {
   vehicleId: string;
   vehicles: StructuredVehicle[];
   onBack: () => void;
+  selectedState: string;
 }
 
-export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: VehicleDetailPageProps) {
+export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selectedState }: VehicleDetailPageProps) {
   const [vehicle, setVehicle] = useState<StructuredVehicle | null>(null);
   const [inGarage, setInGarage] = useState(false);
   const [selection, setSelection] = useState<VehicleConfigSelection>({
@@ -61,6 +63,9 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
 
   const selectionMatchesSaved = inGarage && doesSavedSelectionMatch(vehicleId, selection);
 
+  const hasValue = (v: string | null | undefined): v is string =>
+    v != null && v.trim() !== '' && v.toLowerCase() !== 'n/a';
+
   const handleGarageAction = () => {
     if (inGarage && selectionMatchesSaved) {
       removeGarageItem(vehicleId);
@@ -87,6 +92,11 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
       </div>
     );
   }
+
+  const fuelType = resolvedData?.specs.overview.fuelType ?? '';
+  const isEV = fuelType.toLowerCase().includes('electric') ||
+    /kwh|battery/i.test(resolvedData?.specs.efficiency.fuelTank ?? '') ||
+    (vehicle.tags ?? []).some(t => /ev|electric/i.test(t));
 
   return (
     <div className="min-h-screen bg-slate-50 pt-20 pb-12">
@@ -125,7 +135,7 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
                 <div className="mb-6">
                   <div className="text-sm text-slate-600 mb-1">Price</div>
                   <div className="text-3xl font-bold text-slate-900">
-                    {resolvedData ? `$${resolvedData.totalPrice.toLocaleString()}` : '—'}
+                    {resolvedData ? `$${(resolvePrice(vehicle, selectedState) ?? resolvedData.totalPrice).toLocaleString()}` : '—'}
                   </div>
                 </div>
 
@@ -166,30 +176,59 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack }: Vehic
                   />
                 </div>
 
-                {(() => {
-                  const fuelType = resolvedData?.specs.overview.fuelType ?? '';
-                  const isEV = fuelType.toLowerCase().includes('electric') ||
-                    (vehicle.tags ?? []).some(t => /ev|electric/i.test(t));
-                  return isEV && (vehicle.chargeTimeAC || vehicle.chargeTimeDC) ? (
+                {resolvedData && (() => {
+                  const eff = resolvedData.specs.efficiency;
+                  const rows = isEV
+                    ? [
+                        hasValue(eff.estimatedRange) && { label: 'Range', value: eff.estimatedRange },
+                        hasValue(eff.fuelTank) && { label: 'Battery', value: eff.fuelTank },
+                        hasValue(eff.fuelEconomy) && { label: 'Fuel economy', value: eff.fuelEconomy },
+                        hasValue(eff.realWorldEstimate) && { label: 'Real-world est.', value: eff.realWorldEstimate },
+                        hasValue(eff.annualRunningCost) && { label: 'Annual cost', value: eff.annualRunningCost },
+                      ]
+                    : [
+                        hasValue(eff.fuelEconomy) && { label: 'Fuel economy', value: eff.fuelEconomy },
+                        hasValue(eff.realWorldEstimate) && { label: 'Real-world est.', value: eff.realWorldEstimate },
+                        hasValue(eff.fuelTank) && { label: 'Fuel tank', value: eff.fuelTank },
+                        hasValue(eff.estimatedRange) && { label: 'Range', value: eff.estimatedRange },
+                        hasValue(eff.annualRunningCost) && { label: 'Annual cost', value: eff.annualRunningCost },
+                      ];
+                  const visible = rows.filter((r): r is { label: string; value: string } => !!r);
+                  if (visible.length === 0) return null;
+                  return (
                     <div className="mt-6 pt-6 border-t border-slate-200">
-                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Charging</h4>
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Efficiency</h4>
                       <div className="space-y-2">
-                        {vehicle.chargeTimeAC && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-slate-600">AC (home)</span>
-                            <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeAC}</span>
+                        {visible.map((row, idx) => (
+                          <div key={idx} className="flex justify-between items-center">
+                            <span className="text-sm text-slate-600">{row.label}</span>
+                            <span className="text-sm font-semibold text-slate-900">{row.value}</span>
                           </div>
-                        )}
-                        {vehicle.chargeTimeDC && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-slate-600">DC (fast)</span>
-                            <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeDC}</span>
-                          </div>
-                        )}
+                        ))}
                       </div>
                     </div>
-                  ) : null;
+                  );
                 })()}
+
+                {isEV && (vehicle.chargeTimeAC || vehicle.chargeTimeDC) && (
+                  <div className="mt-6 pt-6 border-t border-slate-200">
+                    <h4 className="text-sm font-semibold text-slate-900 mb-3">Charging</h4>
+                    <div className="space-y-2">
+                      {vehicle.chargeTimeAC && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600">AC (home)</span>
+                          <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeAC}</span>
+                        </div>
+                      )}
+                      {vehicle.chargeTimeDC && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-slate-600">DC (fast)</span>
+                          <span className="text-sm font-semibold text-slate-900">{vehicle.chargeTimeDC}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {(vehicle.dimensionLength || vehicle.dimensionWidth || vehicle.dimensionHeight) && (
                   <div className="mt-6 pt-6 border-t border-slate-200">

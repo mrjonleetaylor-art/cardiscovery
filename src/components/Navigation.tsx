@@ -1,19 +1,41 @@
-import React, { useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Car, LogOut, Menu, X, Warehouse } from 'lucide-react';
 import { useAuth } from './Auth/AuthContext';
 import { AuthModal } from './Auth/AuthModal';
 import { getGarageItems } from '../lib/session';
+import { AUSTRALIAN_STATES } from '../lib/statePrice';
 
 interface NavigationProps {
   onNavigate: (page: string) => void;
   currentPage: string;
+  selectedState: string;
+  onStateChange: (state: string) => void;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage }) => {
+export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage, selectedState, onStateChange }) => {
   const { user, signOut } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [garageCount, setGarageCount] = useState(0);
+  const [stateOpen, setStateOpen] = useState(false);
+  const [hasSelectedState, setHasSelectedState] = useState(() => !!localStorage.getItem('car_state'));
+  const stateRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (stateRef.current && !stateRef.current.contains(e.target as Node)) {
+        setStateOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleStateSelect = (state: string) => {
+    onStateChange(state);
+    setHasSelectedState(true);
+    setStateOpen(false);
+  };
 
   useEffect(() => {
     updateGarageCount();
@@ -78,6 +100,28 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage 
                 </span>
               )}
             </button>
+          </div>
+
+          <div ref={stateRef} className="hidden md:block relative">
+            <button
+              onClick={() => setStateOpen(o => !o)}
+              className="px-3 py-1 text-sm font-medium border border-slate-300 rounded-full text-slate-700 hover:border-slate-900 transition-colors"
+            >
+              {hasSelectedState ? selectedState : 'Pick state'}
+            </button>
+            {stateOpen && (
+              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[80px]">
+                {AUSTRALIAN_STATES.map(s => (
+                  <button
+                    key={s}
+                    onClick={() => handleStateSelect(s)}
+                    className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 ${selectedState === s && hasSelectedState ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="hidden md:flex items-center gap-4">
@@ -152,6 +196,21 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage 
                   </span>
                 )}
               </button>
+              <div className="border-t border-slate-200 pt-3">
+                <p className="px-4 pb-1 text-xs text-slate-400 font-medium uppercase tracking-widest">State</p>
+                <div className="flex flex-wrap gap-2 px-4 pb-2">
+                  {AUSTRALIAN_STATES.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => { handleStateSelect(s); setMobileMenuOpen(false); }}
+                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${selectedState === s && hasSelectedState ? 'bg-slate-900 text-white border-slate-900' : 'border-slate-300 text-slate-700 hover:border-slate-900'}`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {user ? (
                 <>
                   <button
