@@ -32,12 +32,17 @@ mkdir -p "$OUTPUT_DIR"
 # ── Convert and resize ────────────────────────────────────────────────────────
 echo "Converting images: $INPUT_DIR → $OUTPUT_DIR"
 
-shopt -s nullglob
 converted=0
-for src in "$INPUT_DIR"/*.{jpg,jpeg,png,webp,heic,heif,tiff,tif,bmp}; do
-  [[ -f "$src" ]] || continue
+
+# Use find + process substitution (bash 3 compatible, handles spaces and mixed case)
+while IFS= read -r -d '' src; do
+  ext="$(echo "${src##*.}" | tr '[:upper:]' '[:lower:]')"
+  case "$ext" in
+    jpg|jpeg|png|webp|heic|heif|tiff|tif|bmp) ;;
+    *) continue ;;
+  esac
+
   base="$(basename "$src")"
-  # Strip original extension, force .jpg output
   stem="${base%.*}"
   out="$OUTPUT_DIR/${stem}.jpg"
 
@@ -50,44 +55,24 @@ for src in "$INPUT_DIR"/*.{jpg,jpeg,png,webp,heic,heif,tiff,tif,bmp}; do
     > /dev/null 2>&1
 
   echo "  ✓ $base → ${stem}.jpg"
-  (( converted++ )) || true
-done
+  converted=$(( converted + 1 ))
+done < <(find "$INPUT_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.heic" \) -print0)
 
 echo "Done. $converted image(s) converted."
 echo ""
 
 # ── Build SQL block ───────────────────────────────────────────────────────────
-# Collect cover and gallery filenames per vehicle id.
-declare -A cover_map    # vehicle_id → filename
-declare -A gallery_map  # vehicle_id → space-separated ordered filenames
+# Collect unique vehicle ids from output filenames (bash 3: no associative arrays).
+vehicle_ids="$(
+  for f in "$OUTPUT_DIR"/*.jpg; do
+    [[ -f "$f" ]] || continue
+    stem="$(basename "${f%.jpg}")"
+    [[ "$stem" == *"__"* ]] || continue
+    echo "${stem%%__*}"
+  done | sort -u
+)"
 
-for out_file in "$OUTPUT_DIR"/*.jpg; do
-  [[ -f "$out_file" ]] || continue
-  fname="$(basename "$out_file")"
-  stem="${fname%.jpg}"
-
-  # Must contain __ separator
-  if [[ "$stem" != *"__"* ]]; then
-    continue
-  fi
-
-  vehicle_id="${stem%%__*}"
-  field="${stem#*__}"
-
-  if [[ "$field" == "cover" ]]; then
-    cover_map["$vehicle_id"]="$fname"
-  elif [[ "$field" == gallery_* ]]; then
-    # Append; will sort later
-    gallery_map["$vehicle_id"]+="$fname "
-  fi
-done
-
-# Collect all vehicle ids
-declare -A all_ids
-for vid in "${!cover_map[@]}"; do all_ids["$vid"]=1; done
-for vid in "${!gallery_map[@]}"; do all_ids["$vid"]=1; done
-
-if [[ ${#all_ids[@]} -eq 0 ]]; then
+if [[ -z "$vehicle_ids" ]]; then
   echo "No vehicle images found in $OUTPUT_DIR — no SQL generated."
   exit 0
 fi
@@ -98,32 +83,49 @@ echo "-- Storage base: $STORAGE_BASE"
 echo "-- ─────────────────────────────────────────────────────────────────────"
 echo ""
 
-for vehicle_id in $(echo "${!all_ids[@]}" | tr ' ' '\n' | sort); do
-  cover_col="NULL"
-  gallery_col="NULL"
+while IFS= read -r vehicle_id; do
+  [[ -z "$vehicle_id" ]] && continue
 
-  if [[ -n "${cover_map[$vehicle_id]:-}" ]]; then
-    cover_col="'${STORAGE_BASE}/${cover_map[$vehicle_id]}'"
+  # Cover: exact match <vehicle_id>__cover.jpg
+  cover_file="$OUTPUT_DIR/${vehicle_id}__cover.jpg"
+  cover_col="NULL"
+  if [[ -f "$cover_file" ]]; then
+    cover_col="'${STORAGE_BASE}/${vehicle_id}__cover.jpg'"
   fi
 
-  if [[ -n "${gallery_map[$vehicle_id]:-}" ]]; then
-    # Sort gallery files by filename (gallery_1, gallery_2, …)
-    IFS=' ' read -r -a gallery_files <<< "$(echo "${gallery_map[$vehicle_id]}" | tr ' ' '\n' | sort | tr '\n' ' ')"
-    parts=()
-    for gf in "${gallery_files[@]}"; do
-      [[ -z "$gf" ]] && continue
-      parts+=("'${STORAGE_BASE}/${gf}'")
-    done
-    if [[ ${#parts[@]} -gt 0 ]]; then
-      gallery_col="ARRAY[$(IFS=,; echo "${parts[*]}")]"
+  # Gallery: all <vehicle_id>__gallery_*.jpg sorted by filename
+  gallery_col="NULL"
+  gallery_parts=""
+  while IFS= read -r gf; do
+    [[ -z "$gf" ]] && continue
+    fname="$(basename "$gf")"
+    part="'${STORAGE_BASE}/${fname}'"
+    if [[ -z "$gallery_parts" ]]; then
+      gallery_parts="$part"
+    else
+      gallery_parts="${gallery_parts},${part}"
     fi
+  done < <(find "$OUTPUT_DIR" -maxdepth 1 -name "${vehicle_id}__gallery_*.jpg" | sort)
+
+  if [[ -n "$gallery_parts" ]]; then
+    gallery_col="ARRAY[${gallery_parts}]"
+  fi
+
+  # Skip vehicle if no images found
+  if [[ "$cover_col" == "NULL" && "$gallery_col" == "NULL" ]]; then
+    continue
   fi
 
   echo "UPDATE admin_vehicles SET"
-  [[ "$cover_col"   != "NULL" ]] && echo "  cover_image_url    = ${cover_col},"
-  [[ "$gallery_col" != "NULL" ]] && echo "  gallery_image_urls = ${gallery_col},"
-  # Remove trailing comma from last SET line
+  if [[ "$cover_col" != "NULL" && "$gallery_col" != "NULL" ]]; then
+    echo "  cover_image_url    = ${cover_col},"
+    echo "  gallery_image_urls = ${gallery_col},"
+  elif [[ "$cover_col" != "NULL" ]]; then
+    echo "  cover_image_url    = ${cover_col},"
+  else
+    echo "  gallery_image_urls = ${gallery_col},"
+  fi
   echo "  updated_at = now()"
   echo "WHERE id = '${vehicle_id}';"
   echo ""
-done
+done <<< "$vehicle_ids"
