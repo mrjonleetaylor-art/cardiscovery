@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # resize-images.sh
-# Converts images to JPEG, resizes to max 1920px longest edge, 85% quality.
+# Converts images to JPEG, resizes to max 1920px longest edge, 85% quality,
+# uploads to Supabase storage, then prints SQL to update admin_vehicles.
 #
 # Filename convention (double-underscore separator):
 #   <vehicle-id>__cover.<ext>        → cover_image_url
@@ -14,18 +15,31 @@ set -euo pipefail
 INPUT_DIR="${1:?Usage: $0 <input-dir> <output-dir>}"
 OUTPUT_DIR="${2:?Usage: $0 <input-dir> <output-dir>}"
 
-# ── Load VITE_SUPABASE_URL from .env ─────────────────────────────────────────
+# ── Load .env ─────────────────────────────────────────────────────────────────
 ENV_FILE="$(dirname "$0")/../.env"
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "Error: .env not found at $ENV_FILE" >&2
   exit 1
 fi
-VITE_SUPABASE_URL="$(grep -E '^VITE_SUPABASE_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'")"
-if [[ -z "$VITE_SUPABASE_URL" ]]; then
-  echo "Error: VITE_SUPABASE_URL not set in .env" >&2
-  exit 1
-fi
-STORAGE_BASE="${VITE_SUPABASE_URL}/storage/v1/object/public/vehicle-images"
+
+read_env() {
+  grep -E "^${1}=" "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"'"'"
+}
+
+SUPABASE_URL="$(read_env VITE_SUPABASE_URL)"
+ANON_KEY="$(read_env VITE_SUPABASE_ANON_KEY)"
+ADMIN_EMAIL="$(read_env VITE_ADMIN_EMAIL)"
+ADMIN_PASSWORD="$(read_env VITE_ADMIN_PASSWORD)"
+
+for var in SUPABASE_URL ANON_KEY ADMIN_EMAIL ADMIN_PASSWORD; do
+  eval "val=\$$var"
+  if [[ -z "$val" ]]; then
+    echo "Error: ${var} not set in .env" >&2
+    exit 1
+  fi
+done
+
+STORAGE_BASE="${SUPABASE_URL}/storage/v1/object/public/vehicle-images"
 
 mkdir -p "$OUTPUT_DIR"
 
@@ -33,8 +47,6 @@ mkdir -p "$OUTPUT_DIR"
 echo "Converting images: $INPUT_DIR → $OUTPUT_DIR"
 
 converted=0
-
-# Use find + process substitution (bash 3 compatible, handles spaces and mixed case)
 while IFS= read -r -d '' src; do
   ext="$(echo "${src##*.}" | tr '[:upper:]' '[:lower:]')"
   case "$ext" in
@@ -45,6 +57,11 @@ while IFS= read -r -d '' src; do
   base="$(basename "$src")"
   stem="${base%.*}"
   out="$OUTPUT_DIR/${stem}.jpg"
+
+  if [[ -f "$out" ]]; then
+    echo "  Skipping ${stem}.jpg (already converted)"
+    continue
+  fi
 
   sips \
     --resampleHeightWidthMax 1920 \
@@ -61,8 +78,64 @@ done < <(find "$INPUT_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -inam
 echo "Done. $converted image(s) converted."
 echo ""
 
+if [[ $converted -eq 0 ]]; then
+  echo "No images converted — nothing to upload."
+  exit 0
+fi
+
+# ── Authenticate ──────────────────────────────────────────────────────────────
+echo "Authenticating as $ADMIN_EMAIL ..."
+
+auth_response="$(curl -sf \
+  -X POST \
+  "${SUPABASE_URL}/auth/v1/token?grant_type=password" \
+  -H "apikey: ${ANON_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"${ADMIN_EMAIL}\",\"password\":\"${ADMIN_PASSWORD}\"}")"
+
+BEARER_TOKEN="$(echo "$auth_response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)"
+
+if [[ -z "$BEARER_TOKEN" ]]; then
+  echo "Error: authentication failed. Check VITE_ADMIN_EMAIL / VITE_ADMIN_PASSWORD." >&2
+  echo "$auth_response" >&2
+  exit 1
+fi
+
+echo "Authenticated."
+echo ""
+
+# ── Upload to Supabase storage ────────────────────────────────────────────────
+echo "Uploading to vehicle-images bucket ..."
+
+upload_ok=0
+upload_fail=0
+
+for f in "$OUTPUT_DIR"/*.jpg; do
+  [[ -f "$f" ]] || continue
+  fname="$(basename "$f")"
+
+  http_code="$(curl -s -o /tmp/_upload_resp.json -w "%{http_code}" \
+    -X POST \
+    "${SUPABASE_URL}/storage/v1/object/vehicle-images/${fname}" \
+    -H "Authorization: Bearer ${BEARER_TOKEN}" \
+    -H "apikey: ${ANON_KEY}" \
+    -H "Content-Type: image/jpeg" \
+    --data-binary "@${f}")"
+
+  if [[ "$http_code" == "200" ]]; then
+    echo "  ✓ $fname"
+    upload_ok=$(( upload_ok + 1 ))
+  else
+    echo "  ✗ $fname (HTTP $http_code: $(cat /tmp/_upload_resp.json))"
+    upload_fail=$(( upload_fail + 1 ))
+  fi
+done
+
+echo ""
+echo "Uploaded: $upload_ok  Failed: $upload_fail"
+echo ""
+
 # ── Build SQL block ───────────────────────────────────────────────────────────
-# Collect unique vehicle ids from output filenames (bash 3: no associative arrays).
 vehicle_ids="$(
   for f in "$OUTPUT_DIR"/*.jpg; do
     [[ -f "$f" ]] || continue
@@ -73,7 +146,6 @@ vehicle_ids="$(
 )"
 
 if [[ -z "$vehicle_ids" ]]; then
-  echo "No vehicle images found in $OUTPUT_DIR — no SQL generated."
   exit 0
 fi
 
@@ -86,14 +158,12 @@ echo ""
 while IFS= read -r vehicle_id; do
   [[ -z "$vehicle_id" ]] && continue
 
-  # Cover: exact match <vehicle_id>__cover.jpg
-  cover_file="$OUTPUT_DIR/${vehicle_id}__cover.jpg"
   cover_col="NULL"
+  cover_file="$OUTPUT_DIR/${vehicle_id}__cover.jpg"
   if [[ -f "$cover_file" ]]; then
     cover_col="'${STORAGE_BASE}/${vehicle_id}__cover.jpg'"
   fi
 
-  # Gallery: all <vehicle_id>__gallery_*.jpg sorted by filename
   gallery_col="NULL"
   gallery_parts=""
   while IFS= read -r gf; do
@@ -111,10 +181,7 @@ while IFS= read -r vehicle_id; do
     gallery_col="ARRAY[${gallery_parts}]"
   fi
 
-  # Skip vehicle if no images found
-  if [[ "$cover_col" == "NULL" && "$gallery_col" == "NULL" ]]; then
-    continue
-  fi
+  [[ "$cover_col" == "NULL" && "$gallery_col" == "NULL" ]] && continue
 
   echo "UPDATE admin_vehicles SET"
   if [[ "$cover_col" != "NULL" && "$gallery_col" != "NULL" ]]; then
