@@ -167,6 +167,10 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
 
   const [statePricesForm, setStatePricesForm] = useState<Record<string, number | ''>>({});
 
+  const GALLERY_SLOTS = 6;
+  const [galleryFields, setGalleryFields] = useState<string[]>(Array(GALLERY_SLOTS).fill(''));
+  const [galleryOpen, setGalleryOpen] = useState(false);
+
   const setStatePrice = (state: string, value: string) => {
     const num = value === '' ? '' : parseInt(value, 10);
     setStatePricesForm((prev) => ({ ...prev, [state]: isNaN(num as number) ? '' : num }));
@@ -195,6 +199,8 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       setForm({ ...v, specs });
       const sp = (v as unknown as Record<string, unknown>).state_prices as Record<string, number> | null;
       setStatePricesForm(sp ? Object.fromEntries(Object.entries(sp).map(([k, val]) => [k, val])) : {});
+      const urls = v.gallery_image_urls ?? [];
+      setGalleryFields(Array.from({ length: GALLERY_SLOTS }, (_, i) => urls[i] ?? ''));
 
       if (v.row_type === 'BASE') {
         const vars = await getVariantsForBase(v.id);
@@ -276,6 +282,9 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         Object.entries(statePricesForm).filter(([, v]) => v !== '' && v !== 0)
       );
       const statePricesValue = Object.keys(statePricesFinal).length > 0 ? statePricesFinal : null;
+
+      const galleryUrls = galleryFields.map((u) => u.trim()).filter(Boolean);
+      payload.gallery_image_urls = galleryUrls;
 
       if (isNew) {
         await createVehicle({ ...payload, state_prices: statePricesValue } as typeof payload);
@@ -602,15 +611,39 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
           <Field label="Cover image URL">
             <input type="url" value={form.cover_image_url ?? ''} onChange={(e) => setField('cover_image_url', e.target.value || null)} placeholder="https://..." className={INPUT} />
           </Field>
-          <Field label="Gallery URLs">
-            <textarea
-              value={form.gallery_image_urls.join('\n')}
-              onChange={(e) => setField('gallery_image_urls', e.target.value.split('\n').map((u) => u.trim()).filter(Boolean))}
-              placeholder="One URL per line"
-              className={TEXTAREA}
-            />
-            <p className="text-xs text-slate-400 mt-1">One URL per line. Exported as pipe-separated in CSV.</p>
-          </Field>
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setGalleryOpen((o) => !o)}
+              className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+            >
+              <span className={`transition-transform ${galleryOpen ? 'rotate-90' : ''}`}>▶</span>
+              Gallery Images
+              {galleryFields.some((u) => u.trim()) && (
+                <span className="text-xs text-slate-400">({galleryFields.filter((u) => u.trim()).length} set)</span>
+              )}
+            </button>
+            {galleryOpen && (
+              <div className="mt-3 space-y-2 pl-4 border-l-2 border-slate-100">
+                {galleryFields.map((val, idx) => (
+                  <div key={idx}>
+                    <label className="block text-xs text-slate-500 mb-1">Gallery Image {idx + 1}</label>
+                    <input
+                      type="url"
+                      value={val}
+                      onChange={(e) => {
+                        const next = [...galleryFields];
+                        next[idx] = e.target.value;
+                        setGalleryFields(next);
+                      }}
+                      placeholder="https://..."
+                      className={INPUT}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <Field label="Image source">
             <input type="text" value={form.image_source ?? ''} onChange={(e) => setField('image_source', e.target.value || null)} className={INPUT} />
           </Field>
