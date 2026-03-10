@@ -25,6 +25,7 @@ const LIVE_VEHICLE_SELECT_COLUMNS = [
   'image_source',
   'license_note',
   'specs',
+  'admin_variant_kind',
   'spec_efficiency_charge_time_ac',
   'spec_efficiency_charge_time_dc',
   'spec_dimensions_length',
@@ -33,8 +34,10 @@ const LIVE_VEHICLE_SELECT_COLUMNS = [
   'state_prices',
 ].join(',');
 
-function rowToVehicle(row: RawVehicleRow): AdminVehicle {
-  return {
+type AdminVehicleWithKind = AdminVehicle & { admin_variant_kind?: string | null };
+
+function rowToVehicle(row: RawVehicleRow): AdminVehicleWithKind {
+  const vehicle: AdminVehicleWithKind = {
     id: row.id as string,
     row_type: row.row_type as AdminVehicle['row_type'],
     base_id: row.base_id as string,
@@ -60,11 +63,13 @@ function rowToVehicle(row: RawVehicleRow): AdminVehicle {
     spec_dimensions_length: (row.spec_dimensions_length as number) ?? null,
     spec_dimensions_width: (row.spec_dimensions_width as number) ?? null,
     spec_dimensions_height: (row.spec_dimensions_height as number) ?? null,
+    admin_variant_kind: (row.admin_variant_kind as string) ?? null,
   };
+  return vehicle;
 }
 
-function variantKind(vehicle: AdminVehicle): string | null {
-  return vehicle.specs['admin_variant_kind'] ?? null;
+function variantKind(vehicle: AdminVehicleWithKind): string | null {
+  return vehicle.admin_variant_kind ?? null;
 }
 
 function norm(value: unknown): string {
