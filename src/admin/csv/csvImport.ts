@@ -9,7 +9,7 @@
  *   5. Two-pass write: BASE rows first, then VARIANT rows.
  *   6. BASE existing: blank CSV fields do NOT overwrite DB values.
  *   7. VARIANT: blank fields stored as null (inherit at render time).
- *   8. DB rows absent from CSV → archive (status='archived', archived_at=now()).
+ *   8. DB rows absent from CSV are untouched — no archiving.
  *   9. Transactional: if any fatal errors, create ImportBatch with errors, abort writes.
  *  10. Create ImportBatch with stats + errors regardless of outcome.
  */
@@ -39,12 +39,10 @@ import {
 } from '../lib/enums';
 import {
   getAllVehicleIds,
-  getLiveVehicleIds,
   getVehicle,
   importInsert,
   importUpdateBase,
   importUpsertVariant,
-  archiveVehicle,
 } from '../lib/adminVehicles';
 
 // ─── CSV text parser ──────────────────────────────────────────────────────────
@@ -436,10 +434,8 @@ export async function applyImport(
 
   // Fetch current DB state
   const allDbIds = await getAllVehicleIds();
-  const liveDbIds = await getLiveVehicleIds();
   const dbBaseIds = await getAllDbBaseIds();
 
-  const csvIds = new Set(parseResult.rows.map((r) => r.id));
   const baseRows = parseResult.rows.filter((r) => r.row_type === 'BASE');
   const variantRows = parseResult.rows.filter((r) => r.row_type === 'VARIANT');
   const packImportNotes = await buildPackImportNotes(baseRows, variantRows);
@@ -499,13 +495,7 @@ export async function applyImport(
           });
           continue;
         }
-        await importInsert(
-          {
-            ...csvRowToAdminVehicle(row),
-            status: row.status ?? 'draft',
-          },
-          importId,
-        );
+        await importInsert(csvRowToAdminVehicle(row), importId);
         created++;
       }
     } catch (err) {
@@ -535,24 +525,11 @@ export async function applyImport(
     }
   }
 
-  // Archive missing rows — DB rows not present in CSV
-  let archived = 0;
-  for (const dbId of liveDbIds) {
-    if (!csvIds.has(dbId)) {
-      try {
-        await archiveVehicle(dbId, 'missing_from_import', importId);
-        archived++;
-      } catch (err) {
-        writeErrors.push({ row_number: -1, vehicle_id: dbId, field: null, message: String(err) });
-      }
-    }
-  }
-
   const finalStats: ImportStats = {
     ...baseStats,
     created,
     updated,
-    archived,
+    archived: 0,
     errors: writeErrors.length,
   };
 
