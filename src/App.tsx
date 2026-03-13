@@ -230,6 +230,14 @@ function AppContent() {
           {currentPage === 'garage' && <GaragePage vehicles={vehicles} selectedState={selectedState} />}
         </>
       )}
+
+      <footer className="border-t border-slate-100 bg-white px-4 py-6 mt-8">
+        <div className="max-w-7xl mx-auto">
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Prices shown are manufacturer's recommended driveaway prices and are indicative only. Prices may vary by state, dealer, and are subject to change without notice. Always confirm pricing with an authorised dealer or visit the manufacturer's website.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

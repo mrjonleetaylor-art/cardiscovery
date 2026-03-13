@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { Plus, Minus, Check } from 'lucide-react';
+import { Plus, Minus, Check, SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { addToGarage, removeFromGarage, isInGarage } from '../lib/session';
 import { AdvancedFilters, defaultAdvancedFilters, matchesAdvancedFilters } from '../lib/advancedFilters';
 import { AdvancedFiltersPanel } from './filters/AdvancedFiltersPanel';
@@ -8,6 +8,70 @@ import { getDisplayProps } from './compare/utils/display';
 import { StructuredVehicle } from '../types/specs';
 import { getAIRecommendations, AIRecommendation } from '../lib/ai';
 import { resolvePrice } from '../lib/statePrice';
+
+// ── Seeded shuffle helpers ────────────────────────────────────────────────────
+function mulberry32(seed: number) {
+  return () => {
+    seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function seededShuffle<T>(arr: T[], rng: () => number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function interleaveByMake<T extends { make: string }>(arr: T[]): T[] {
+  const buckets = new Map<string, T[]>();
+  for (const v of arr) {
+    if (!buckets.has(v.make)) buckets.set(v.make, []);
+    buckets.get(v.make)!.push(v);
+  }
+  const queues = Array.from(buckets.values());
+  const result: T[] = [];
+  let round = 0;
+  while (result.length < arr.length) {
+    let added = false;
+    for (const q of queues) {
+      if (round < q.length) { result.push(q[round]); added = true; }
+    }
+    if (!added) break;
+    round++;
+  }
+  return result;
+}
+
+const BODY_PILLS = [
+  { key: '', label: 'All' },
+  { key: 'suv', label: 'SUV' },
+  { key: 'sedan', label: 'Sedan' },
+  { key: 'ute', label: 'Ute' },
+  { key: 'hatch', label: 'Hatch' },
+] as const;
+
+const POWERTRAIN_PILLS = [
+  { key: '', label: 'All' },
+  { key: 'petrol', label: 'Petrol' },
+  { key: 'hybrid', label: 'Hybrid' },
+  { key: 'phev', label: 'PHEV' },
+  { key: 'electric', label: 'Electric' },
+] as const;
+
+const BUDGET_PILLS = [
+  { key: 'any', label: 'Any', min: 0, max: 250000 },
+  { key: 'u40', label: 'Under $40k', min: 0, max: 40000 },
+  { key: '40-60', label: '$40–60k', min: 40000, max: 60000 },
+  { key: '60-80', label: '$60–80k', min: 60000, max: 80000 },
+  { key: '80-100', label: '$80–100k', min: 80000, max: 100000 },
+  { key: '100+', label: '$100k+', min: 100000, max: 250000 },
+] as const;
 
 interface Filters {
   make: string;
@@ -166,6 +230,18 @@ export default function Discovery({
     budgetMax: 250000,
   });
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>(defaultAdvancedFilters);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const activeBudgetKey = BUDGET_PILLS.find(
+    (p) => p.min === filters.budgetMin && p.max === filters.budgetMax
+  )?.key ?? 'any';
+
+  const panelFilterCount =
+    [filters.make, filters.model].filter(Boolean).length +
+    (JSON.stringify(advancedFilters) !== JSON.stringify(defaultAdvancedFilters) ? 1 : 0);
+
+  // Fixed per mount, changes on each page load
+  const [seed] = useState(() => Math.random());
 
   useEffect(() => {
     loadGarageState();
@@ -195,8 +271,8 @@ export default function Discovery({
 
     if (filters.make) filtered = filtered.filter(v => v.make === filters.make);
     if (filters.model) filtered = filtered.filter(v => v.model === filters.model);
-    if (filters.bodyType) filtered = filtered.filter(v => getDisplayProps(v).bodyType === filters.bodyType);
-    if (filters.fuelType) filtered = filtered.filter(v => getDisplayProps(v).fuelType === filters.fuelType);
+    if (filters.bodyType) filtered = filtered.filter(v => getDisplayProps(v).bodyType?.toLowerCase() === filters.bodyType.toLowerCase());
+    if (filters.fuelType) filtered = filtered.filter(v => getDisplayProps(v).fuelType?.toLowerCase() === filters.fuelType.toLowerCase());
 
     filtered = filtered.filter(v => {
       const price = getDisplayProps(v).basePrice;
@@ -210,11 +286,14 @@ export default function Discovery({
 
   // null = no search run (show full list); [] = search ran but no matches.
   const displayedVehicles = useMemo(() => {
-    if (aiResults === null) return filteredVehicles;
-    return aiResults
-      .map((r) => vehicles.find((v) => v.id === r.vehicleId))
-      .filter((v): v is StructuredVehicle => v != null);
-  }, [aiResults, filteredVehicles, vehicles]);
+    if (aiResults !== null) {
+      return aiResults
+        .map((r) => vehicles.find((v) => v.id === r.vehicleId))
+        .filter((v): v is StructuredVehicle => v != null);
+    }
+    const rng = mulberry32(seed * 0xFFFFFFFF);
+    return interleaveByMake(seededShuffle(filteredVehicles, rng));
+  }, [aiResults, filteredVehicles, vehicles, seed]);
 
   const aiReasonMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -266,16 +345,11 @@ export default function Discovery({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-16 pb-12 px-4">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-2">
-          <h1 className="text-4xl font-bold text-slate-900 mb-0">The Smarter Way to Choose Your Next Car</h1>
-          <p className="text-lg text-slate-600">Intelligent recommendations. Side-by-side comparisons. No guesswork.</p>
-        </div>
-
         {/* AI search */}
-        <div className="mb-2">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mb-1">AI-Powered Search</p>
+        <div className="mb-3">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1 mb-1">AI-Powered Search</p>
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <input
@@ -286,11 +360,13 @@ export default function Discovery({
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 disabled={aiLoading}
-                className="w-full px-3 py-2 border border-slate-400 text-sm bg-white text-slate-900 focus:outline-none focus:border-slate-900 disabled:opacity-50"
+                className="w-full h-14 px-5 bg-white text-slate-900 focus:outline-none disabled:opacity-50"
+                style={{ fontSize: 17, border: '1px solid #e0e0e0', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
               />
               {!inputFocused && !aiQuery && displayedText && (
                 <span
-                  className="absolute inset-0 px-3 py-2 text-sm text-slate-400 pointer-events-none select-none overflow-hidden whitespace-nowrap"
+                  className="absolute inset-0 flex items-center px-5 text-slate-400 pointer-events-none select-none overflow-hidden whitespace-nowrap"
+                  style={{ fontSize: 17 }}
                   aria-hidden="true"
                 >
                   {displayedText}<span className="animate-pulse">|</span>
@@ -300,7 +376,8 @@ export default function Discovery({
             <button
               onClick={handleAISearch}
               disabled={aiLoading || aiQuery.trim().length < 3}
-              className={`flex items-center gap-2 px-4 py-2 border border-slate-400 text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
+              className={`flex items-center gap-2 px-5 h-14 border border-[#e0e0e0] text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
+              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
             >
               {aiLoading ? 'Searching...' : (
                 <>
@@ -312,7 +389,7 @@ export default function Discovery({
             {aiResults !== null && (
               <button
                 onClick={clearAI}
-                className="px-4 py-2 border border-slate-300 text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
+                className="px-4 h-14 border border-[#e0e0e0] text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
               >
                 Clear
               </button>
@@ -320,156 +397,224 @@ export default function Discovery({
           </div>
         </div>
 
-        <div className="mb-3 p-3 bg-white rounded-lg border border-slate-200 shadow-sm">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Make</label>
-              <select
-                value={filters.make}
-                onChange={(e) => setFilters({ ...filters, make: e.target.value, model: '' })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+        {/* Browse pills — single row */}
+        <div className="mb-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 mb-2">
+            {BODY_PILLS.map((pill) => (
+              <button
+                key={`body-${pill.key}`}
+                onClick={() => setFilters((f) => ({ ...f, bodyType: pill.key }))}
+                className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
+                  filters.bodyType.toLowerCase() === pill.key
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                }`}
               >
-                <option value="">All Makes</option>
-                {makes.map(make => (
-                  <option key={make} value={make}>{make}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
-              <select
-                value={filters.model}
-                onChange={(e) => setFilters({ ...filters, model: e.target.value })}
-                disabled={!filters.make}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                {pill.label}
+              </button>
+            ))}
+            <span className="flex-shrink-0 w-px h-4 bg-slate-200 mx-1" />
+            {POWERTRAIN_PILLS.filter((p) => p.key !== '').map((pill) => (
+              <button
+                key={`pt-${pill.key}`}
+                onClick={() => setFilters((f) => ({ ...f, fuelType: filters.fuelType === pill.key ? '' : pill.key }))}
+                className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
+                  filters.fuelType === pill.key
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                }`}
               >
-                <option value="">All Models</option>
-                {models.map(model => (
-                  <option key={model} value={model}>{model}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Body Type</label>
-              <select
-                value={filters.bodyType}
-                onChange={(e) => setFilters({ ...filters, bodyType: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                {pill.label}
+              </button>
+            ))}
+            <span className="flex-shrink-0 w-px h-4 bg-slate-200 mx-1" />
+            {BUDGET_PILLS.filter((p) => p.key !== 'any').map((pill) => (
+              <button
+                key={`budget-${pill.key}`}
+                onClick={() => setFilters((f) => ({
+                  ...f,
+                  budgetMin: activeBudgetKey === pill.key ? 0 : pill.min,
+                  budgetMax: activeBudgetKey === pill.key ? 250000 : pill.max,
+                }))}
+                className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
+                  activeBudgetKey === pill.key
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                }`}
               >
-                <option value="">All Types</option>
-                {bodyTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Fuel Type</label>
-              <select
-                value={filters.fuelType}
-                onChange={(e) => setFilters({ ...filters, fuelType: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-              >
-                <option value="">All Fuels</option>
-                {fuelTypes.map(fuel => (
-                  <option key={fuel} value={fuel}>{fuel}</option>
-                ))}
-              </select>
-            </div>
+                {pill.label}
+              </button>
+            ))}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Budget</label>
-            <div className="grid grid-cols-2 gap-3 mb-2">
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Min</label>
-                <input
-                  type="number"
-                  value={filters.budgetMin}
-                  onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(Number(e.target.value), filters.budgetMax) })}
-                  min="0"
-                  max="250000"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Max</label>
-                <input
-                  type="number"
-                  value={filters.budgetMax}
-                  onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(Number(e.target.value), filters.budgetMin) })}
-                  min="0"
-                  max="250000"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
-                />
-              </div>
-            </div>
-
-            <div className="px-2">
-              <div className="relative h-2 bg-slate-200 rounded-full">
-                <div
-                  className="absolute h-2 bg-slate-900 rounded-full"
-                  style={{
-                    left: `${(filters.budgetMin / 250000) * 100}%`,
-                    right: `${100 - (filters.budgetMax / 250000) * 100}%`,
-                  }}
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="250000"
-                  step="5000"
-                  value={filters.budgetMin}
-                  onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(parseInt(e.target.value), filters.budgetMax) })}
-                  className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
-                  style={{ zIndex: filters.budgetMin > filters.budgetMax - 10000 ? 5 : 3 }}
-                />
-                <input
-                  type="range"
-                  min="0"
-                  max="250000"
-                  step="5000"
-                  value={filters.budgetMax}
-                  onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(parseInt(e.target.value), filters.budgetMin) })}
-                  className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
-                  style={{ zIndex: 4 }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3">
-            <AdvancedFiltersPanel
-              value={advancedFilters}
-              onChange={setAdvancedFilters}
-              onClear={() => setAdvancedFilters(defaultAdvancedFilters)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-2 border-t border-slate-200 mt-2">
-            <p className="text-sm text-slate-600">
-              {filteredVehicles.length} vehicle{filteredVehicles.length !== 1 ? 's' : ''} found
+          {/* Filters toggle + count */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setFiltersOpen((o) => !o)}
+              className={`flex items-center gap-2 h-9 px-4 rounded-lg border text-sm font-semibold transition-colors ${
+                filtersOpen || panelFilterCount > 0
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+              Filters
+              {panelFilterCount > 0 && (
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-slate-900 text-[10px] font-bold">
+                  {panelFilterCount}
+                </span>
+              )}
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <p className="text-sm text-slate-500">
+              {displayedVehicles.length} vehicle{displayedVehicles.length !== 1 ? 's' : ''} found
               {aiResults !== null && ` — ${aiResults.length} AI-matched`}
             </p>
-            <button
-              onClick={() => {
-                setFilters({
-                  make: '',
-                  model: '',
-                  bodyType: '',
-                  fuelType: '',
-                  budgetMin: 0,
-                  budgetMax: 250000,
-                });
-                setAdvancedFilters(defaultAdvancedFilters);
-              }}
-              className="text-sm text-slate-900 hover:text-slate-700 font-medium"
-            >
-              Clear Filters
-            </button>
           </div>
+
+          {/* Collapsible filter panel */}
+          {filtersOpen && (
+            <div className="mt-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Make</label>
+                  <select
+                    value={filters.make}
+                    onChange={(e) => setFilters({ ...filters, make: e.target.value, model: '' })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="">All Makes</option>
+                    {makes.map(make => (
+                      <option key={make} value={make}>{make}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+                  <select
+                    value={filters.model}
+                    onChange={(e) => setFilters({ ...filters, model: e.target.value })}
+                    disabled={!filters.make}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                  >
+                    <option value="">All Models</option>
+                    {models.map(model => (
+                      <option key={model} value={model}>{model}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Body Type</label>
+                  <select
+                    value={filters.bodyType}
+                    onChange={(e) => setFilters({ ...filters, bodyType: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="">All Types</option>
+                    {bodyTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Fuel Type</label>
+                  <select
+                    value={filters.fuelType}
+                    onChange={(e) => setFilters({ ...filters, fuelType: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  >
+                    <option value="">All Fuels</option>
+                    {fuelTypes.map(fuel => (
+                      <option key={fuel} value={fuel}>{fuel}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Budget</label>
+                <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Min</label>
+                    <input
+                      type="number"
+                      value={filters.budgetMin}
+                      onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(Number(e.target.value), filters.budgetMax) })}
+                      min="0"
+                      max="250000"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Max</label>
+                    <input
+                      type="number"
+                      value={filters.budgetMax}
+                      onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(Number(e.target.value), filters.budgetMin) })}
+                      min="0"
+                      max="250000"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="px-2">
+                  <div className="relative h-2 bg-slate-200 rounded-full">
+                    <div
+                      className="absolute h-2 bg-slate-900 rounded-full"
+                      style={{
+                        left: `${(filters.budgetMin / 250000) * 100}%`,
+                        right: `${100 - (filters.budgetMax / 250000) * 100}%`,
+                      }}
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="250000"
+                      step="5000"
+                      value={filters.budgetMin}
+                      onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(parseInt(e.target.value), filters.budgetMax) })}
+                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
+                      style={{ zIndex: filters.budgetMin > filters.budgetMax - 10000 ? 5 : 3 }}
+                    />
+                    <input
+                      type="range"
+                      min="0"
+                      max="250000"
+                      step="5000"
+                      value={filters.budgetMax}
+                      onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(parseInt(e.target.value), filters.budgetMin) })}
+                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
+                      style={{ zIndex: 4 }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <AdvancedFiltersPanel
+                  value={advancedFilters}
+                  onChange={setAdvancedFilters}
+                  onClear={() => setAdvancedFilters(defaultAdvancedFilters)}
+                />
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-200">
+                <button
+                  onClick={() => {
+                    setFilters({ make: '', model: '', bodyType: '', fuelType: '', budgetMin: 0, budgetMax: 250000 });
+                    setAdvancedFilters(defaultAdvancedFilters);
+                  }}
+                  className="text-sm text-slate-900 hover:text-slate-700 font-medium"
+                >
+                  Clear all filters
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -477,7 +622,16 @@ export default function Discovery({
             const inGarage = garageItems.includes(vehicle.id);
             const isCarA = compareV1Id === vehicle.id;
             const isCarB = compareV2Id === vehicle.id;
-            const { basePrice, imageUrl } = getDisplayProps(vehicle);
+            const { basePrice, imageUrl, bodyType, fuelType: displayFuelType } = getDisplayProps(vehicle);
+            const overview = vehicle.trims[0]?.specs?.overview;
+            const fuelType = overview?.fuelType ?? '';
+            const drivetrain = overview?.drivetrain ?? '';
+            const powertrainBadges: { label: string; className: string }[] = [];
+            if (fuelType === 'electric') powertrainBadges.push({ label: 'EV', className: 'bg-emerald-600 text-white' });
+            else if (fuelType === 'phev') powertrainBadges.push({ label: 'PHEV', className: 'bg-blue-600 text-white' });
+            else if (fuelType === 'hybrid') powertrainBadges.push({ label: 'Hybrid', className: 'bg-teal-600 text-white' });
+            if (drivetrain === 'awd') powertrainBadges.push({ label: 'AWD', className: 'bg-slate-800 text-white' });
+            else if (drivetrain === 'four_wd') powertrainBadges.push({ label: '4WD', className: 'bg-slate-800 text-white' });
 
             return (
               <div key={vehicle.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
@@ -510,23 +664,35 @@ export default function Discovery({
                 </div>
 
                 <div className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-900">
-                        {vehicle.year} {vehicle.make} {vehicle.model}
-                      </h3>
-                      {aiReasonMap[vehicle.id] && (
-                        <p className="text-xs text-slate-400 mt-0.5 leading-snug">{aiReasonMap[vehicle.id]}</p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-slate-900">
-                        ${(resolvePrice(vehicle, selectedState) ?? basePrice).toLocaleString()}
-                      </p>
-                      {vehicle.trims.length > 1 && (
-                        <p className="text-xs text-slate-500">+ options</p>
-                      )}
-                    </div>
+                  <div className="flex items-start justify-between mb-0.5">
+                    <p className="text-2xl font-bold text-slate-900 leading-tight">
+                      ${(resolvePrice(vehicle, selectedState) ?? basePrice).toLocaleString()}
+                    </p>
+                    {vehicle.trims.length > 1 && (
+                      <span className="shrink-0 ml-3 px-2 py-0.5 rounded-full bg-slate-100 text-xs text-slate-400 font-normal">
+                        +{vehicle.trims.length - 1} {vehicle.trims.length - 1 === 1 ? 'variant' : 'variants'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mb-1.5">Driveaway pricing is indicative only and subject to change.</p>
+                  <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
+                    {bodyType && <span>{bodyType}</span>}
+                    {bodyType && displayFuelType && <span className="text-slate-300">·</span>}
+                    {displayFuelType && <span className="capitalize">{displayFuelType}</span>}
+                    {powertrainBadges.filter(b => b.label === 'AWD' || b.label === '4WD').map((b) => (
+                      <>
+                        <span key={`dot-${b.label}`} className="text-slate-300">·</span>
+                        <span key={b.label}>{b.label}</span>
+                      </>
+                    ))}
+                  </div>
+                  <div className="mb-2">
+                    <h3 className="text-base font-semibold text-slate-900">
+                      {vehicle.year} {vehicle.make} {vehicle.model}
+                    </h3>
+                    {aiReasonMap[vehicle.id] && (
+                      <p className="text-xs text-slate-400 mt-0.5 leading-snug">{aiReasonMap[vehicle.id]}</p>
+                    )}
                   </div>
 
                   {vehicle.aiSummary && (

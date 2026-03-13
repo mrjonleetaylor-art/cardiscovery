@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Car, LogOut, Menu, X, Warehouse } from 'lucide-react';
+import { Car, LogOut, Menu, X, Warehouse, User } from 'lucide-react';
 import { useAuth } from './Auth/AuthContext';
 import { AuthModal } from './Auth/AuthModal';
 import { getGarageItems } from '../lib/session';
@@ -19,12 +19,19 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage,
   const [garageCount, setGarageCount] = useState(0);
   const [stateOpen, setStateOpen] = useState(false);
   const [hasSelectedState, setHasSelectedState] = useState(() => !!localStorage.getItem('car_state'));
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState(() => localStorage.getItem('profile_name') ?? '');
+
   const stateRef = useRef<HTMLDivElement>(null);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (stateRef.current && !stateRef.current.contains(e.target as Node)) {
         setStateOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -35,6 +42,12 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage,
     onStateChange(state);
     setHasSelectedState(true);
     setStateOpen(false);
+  };
+
+  const handleProfileNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setProfileName(val);
+    localStorage.setItem('profile_name', val);
   };
 
   useEffect(() => {
@@ -50,6 +63,7 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage,
   const handleSignOut = async () => {
     try {
       await signOut();
+      setProfileOpen(false);
       onNavigate('discovery');
     } catch (error) {
       console.error('Sign out error:', error);
@@ -102,43 +116,79 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage,
             </button>
           </div>
 
-          <div ref={stateRef} className="hidden md:block relative">
-            <button
-              onClick={() => setStateOpen(o => !o)}
-              className="px-3 py-1 text-sm font-medium border border-slate-300 rounded-full text-slate-700 hover:border-slate-900 transition-colors"
-            >
-              {hasSelectedState ? selectedState : 'Pick state'}
-            </button>
-            {stateOpen && (
-              <div className="absolute right-0 top-8 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[80px]">
-                {AUSTRALIAN_STATES.map(s => (
-                  <button
-                    key={s}
-                    onClick={() => handleStateSelect(s)}
-                    className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 ${selectedState === s && hasSelectedState ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="hidden md:flex items-center gap-4">
+          {/* State + Profile */}
+          <div className="hidden md:flex items-center gap-2" ref={profileRef}>
+            <div ref={stateRef} className="relative">
+              <button
+                onClick={() => setStateOpen(o => !o)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:border-slate-900 transition-colors"
+              >
+                {hasSelectedState ? selectedState : 'Pick state'}
+              </button>
+              {stateOpen && (
+                <div className="absolute right-0 top-10 z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[80px]">
+                  {AUSTRALIAN_STATES.map(s => (
+                    <button
+                      key={s}
+                      onClick={() => handleStateSelect(s)}
+                      className={`block w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 ${selectedState === s && hasSelectedState ? 'font-semibold text-slate-900' : 'text-slate-600'}`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {user ? (
               <>
                 <button
-                  onClick={() => onNavigate('profile')}
-                  className="text-sm text-gray-700 hover:text-blue-600 font-medium"
+                  onClick={() => setProfileOpen(o => !o)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:border-slate-900 transition-colors"
                 >
-                  {user.email}
+                  <User size={15} className="text-slate-500" />
+                  {profileName.trim() || 'Profile'}
                 </button>
-                <button
-                  onClick={handleSignOut}
-                  className="text-gray-700 hover:text-red-600 transition-colors"
-                >
-                  <LogOut size={20} />
-                </button>
+                {profileOpen && (
+                  <div className="absolute right-0 top-10 z-50 bg-white border border-slate-200 rounded-xl shadow-lg w-64 py-3">
+                    <div className="px-4 pb-3">
+                      <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                      <input
+                        type="text"
+                        value={profileName}
+                        onChange={handleProfileNameChange}
+                        placeholder="Your name"
+                        className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
+                      />
+                    </div>
+                    <div className="px-4 pb-3">
+                      <label className="block text-xs font-medium text-slate-500 mb-1.5">State</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {AUSTRALIAN_STATES.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => { onStateChange(s); setHasSelectedState(true); }}
+                            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                              selectedState === s && hasSelectedState
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'border-slate-200 text-slate-600 hover:border-slate-400'
+                            }`}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-100 mt-1 pt-1">
+                      <button
+                        onClick={handleSignOut}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut size={15} />
+                        Sign out
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <button
@@ -213,15 +263,16 @@ export const Navigation: React.FC<NavigationProps> = ({ onNavigate, currentPage,
 
               {user ? (
                 <>
-                  <button
-                    onClick={() => {
-                      onNavigate('profile');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left px-4 py-2 rounded text-sm font-medium text-gray-700 hover:bg-gray-100"
-                  >
-                    {user.email}
-                  </button>
+                  <div className="px-4 pb-1">
+                    <label className="block text-xs font-medium text-slate-500 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={profileName}
+                      onChange={handleProfileNameChange}
+                      placeholder="Your name"
+                      className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-slate-900"
+                    />
+                  </div>
                   <button
                     onClick={handleSignOut}
                     className="block w-full text-left px-4 py-2 rounded text-sm font-medium text-red-600 hover:bg-red-50"

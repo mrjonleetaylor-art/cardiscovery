@@ -381,7 +381,14 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
     );
   }
 
-  const pageTitle = isNew ? 'New vehicle' : `Edit: ${form.make} ${form.model} ${form.year}`;
+  const pageTitle = (() => {
+    if (isNew) return 'New vehicle';
+    const displayName = form.display_name ?? undefined;
+    const modelRedundant = !!(displayName && form.model &&
+      displayName.toLowerCase().includes(form.model.toLowerCase()));
+    return [form.make, modelRedundant ? undefined : form.model, displayName, form.year]
+      .filter(Boolean).join(' ');
+  })();
   const isPackRow = form.row_type === 'VARIANT' && form.specs['admin_variant_kind'] === 'pack';
   const hasSuspiciousPackPrice =
     isPackRow &&
@@ -437,6 +444,14 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         {!isNew && (
           <StatusBadge status={form.status} />
         )}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={(e) => handleSave(e as unknown as React.FormEvent)}
+          className="h-9 px-5 text-sm rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors font-medium"
+        >
+          {saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
+        </button>
       </div>
 
       {/* Resolved preview banner for variants */}

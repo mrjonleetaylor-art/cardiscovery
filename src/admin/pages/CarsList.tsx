@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown, Eye } from 'lucide-react';
+import { Plus, Download, Upload, ExternalLink, Copy, Archive, RotateCcw, Pencil, ChevronDown, Eye, ArrowUp, ArrowDown } from 'lucide-react';
 import { AdminVehicle, AdminVehicleStatus, ImportResult } from '../adminTypes';
 import { listVehicles, archiveVehicle, restoreVehicle, duplicateVehicle } from '../lib/adminVehicles';
 import { seedAdminFromDataset } from '../lib/seedAdminFromDataset';
@@ -11,6 +11,8 @@ import { supabase } from '../../lib/supabase';
 import { FUEL_TYPES, labelFor, normalizeEnum } from '../lib/enums';
 
 type StatusFilter = 'active' | 'draft' | 'live' | 'archived';
+type SortCol = 'make' | 'id' | 'model' | 'year' | 'body' | 'price' | 'status' | 'updated';
+type SortDir = 'asc' | 'desc';
 
 interface CarsListProps {
   listQuery?: string;
@@ -25,9 +27,17 @@ interface DuplicatePrompt {
 
 interface VehicleFilterFields {
   makeKey: string;
+  modelKey: string;
   yearValue: number | null;
   fuelTypeKey: string;
   fuelTypeLabel: string;
+}
+
+function SortIndicator({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: SortDir }) {
+  if (sortCol !== col) return <span className="w-3 h-3 flex-shrink-0 inline-block" />;
+  return sortDir === 'asc'
+    ? <ArrowUp className="w-3 h-3 flex-shrink-0" />
+    : <ArrowDown className="w-3 h-3 flex-shrink-0" />;
 }
 
 function normalizeKey(value: string): string {
@@ -52,7 +62,10 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
         ? status
         : 'active',
       showVariants: params.get('showVariants') === '1',
+      showPacks: params.get('showPacks') === '1',
+      noImage: params.get('noImage') === '1',
       makeFilter: params.get('make') ?? '',
+      modelFilter: params.get('model') ?? '',
       yearFilter: year && /^\d{4}$/.test(year) ? year : '',
       fuelTypeFilter: params.get('fuel') ?? '',
       searchFilter: params.get('search') ?? '',
@@ -66,7 +79,10 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialFilters.statusFilter);
   const [showVariants, setShowVariants] = useState(initialFilters.showVariants);
+  const [showPacks, setShowPacks] = useState(initialFilters.showPacks);
+  const [noImage, setHasImage] = useState(initialFilters.noImage);
   const [makeFilter, setMakeFilter] = useState(initialFilters.makeFilter);
+  const [modelFilter, setModelFilter] = useState(initialFilters.modelFilter);
   const [yearFilter, setYearFilter] = useState(initialFilters.yearFilter);
   const [fuelTypeFilter, setFuelTypeFilter] = useState(initialFilters.fuelTypeFilter);
   const [searchFilter] = useState(initialFilters.searchFilter);
@@ -80,9 +96,55 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const modelComboRef = useRef<HTMLDivElement>(null);
 
   const [seeding, setSeeding] = useState(false);
   const [seedError, setSeedError] = useState<string | null>(null);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkWorking, setBulkWorking] = useState(false);
+
+  const [modelSearch, setModelSearch] = useState('');
+  const [modelOpen, setModelOpen] = useState(false);
+
+  const [sortCol, setSortCol] = useState<SortCol>('updated');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
+  const toggleRow = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkStatus = async (newStatus: AdminVehicleStatus) => {
+    if (selectedIds.size === 0 || bulkWorking) return;
+    setBulkWorking(true);
+    try {
+      const ids = [...selectedIds];
+      const { error: updateError } = await supabase
+        .from('admin_vehicles')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .in('id', ids);
+      if (updateError) throw updateError;
+      setSelectedIds(new Set());
+      await load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBulkWorking(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -247,6 +309,9 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
     const rawMake = vehicle.make?.trim() || base?.make?.trim() || '';
     const makeKey = normalizeKey(rawMake);
 
+    const rawModel = vehicle.model?.trim() || base?.model?.trim() || '';
+    const modelKey = normalizeKey(rawModel);
+
     const rawYear = vehicle.year || base?.year || null;
     const yearValue = rawYear && rawYear > 0 ? rawYear : null;
 
@@ -261,7 +326,7 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
       ? 'Unknown'
       : canonicalFuelType ? labelFor(canonicalFuelType, FUEL_TYPES) : rawFuelType;
 
-    return { makeKey, yearValue, fuelTypeKey, fuelTypeLabel };
+    return { makeKey, modelKey, yearValue, fuelTypeKey, fuelTypeLabel };
   };
 
   const makeOptions = useMemo(() => {
@@ -283,6 +348,26 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
       })
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [vehicles, baseById]);
+
+  const modelOptions = useMemo(() => {
+    const countsByKey = new Map<string, Map<string, number>>();
+    for (const vehicle of vehicles) {
+      const fields = getFilterFields(vehicle);
+      if (!fields.modelKey) continue;
+      if (makeFilter && fields.makeKey !== makeFilter) continue;
+      const rawModel = vehicle.model?.trim() || baseById.get(vehicle.base_id)?.model?.trim() || '';
+      const displayCandidate = rawModel || toDisplayLabel(fields.modelKey);
+      const keyCounts = countsByKey.get(fields.modelKey) ?? new Map<string, number>();
+      keyCounts.set(displayCandidate, (keyCounts.get(displayCandidate) ?? 0) + 1);
+      countsByKey.set(fields.modelKey, keyCounts);
+    }
+    return Array.from(countsByKey.entries())
+      .map(([value, labels]) => {
+        const label = Array.from(labels.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ?? toDisplayLabel(value);
+        return { value, label };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [vehicles, baseById, makeFilter]);
 
   const yearOptions = useMemo(() => {
     const years = new Set<number>();
@@ -308,19 +393,89 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [vehicles, baseById]);
 
+  const filteredModelOptions = useMemo(() => {
+    if (!modelSearch.trim()) return modelOptions;
+    const q = modelSearch.toLowerCase();
+    return modelOptions.filter((o) => o.label.toLowerCase().includes(q));
+  }, [modelOptions, modelSearch]);
+
+  useEffect(() => {
+    if (!modelOpen) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (modelComboRef.current && !modelComboRef.current.contains(e.target as Node)) {
+        setModelOpen(false);
+        setModelSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [modelOpen]);
+
   // Keep filtering client-side for now; move these predicates to query params for server-side filtering later.
   const filteredVehicles = useMemo(() => {
     return vehicles.filter((vehicle) => {
       const fields = getFilterFields(vehicle);
       if (makeFilter && fields.makeKey !== makeFilter) return false;
+      if (modelFilter && fields.modelKey !== modelFilter) return false;
       if (yearFilter && String(fields.yearValue ?? '') !== yearFilter) return false;
       if (fuelTypeFilter && fields.fuelTypeKey !== fuelTypeFilter) return false;
+      if (!showPacks && vehicle.specs?.['admin_variant_kind'] === 'pack') return false;
+      if (noImage && vehicle.cover_image_url) return false;
       return true;
     });
-  }, [vehicles, makeFilter, yearFilter, fuelTypeFilter, baseById]);
+  }, [vehicles, makeFilter, modelFilter, yearFilter, fuelTypeFilter, showPacks, noImage, baseById]);
+
+  const sortedVehicles = useMemo(() => {
+    const getValue = (v: AdminVehicle): string | number | null => {
+      switch (sortCol) {
+        case 'make': return v.make?.toLowerCase() ?? null;
+        case 'id': return v.id.toLowerCase();
+        case 'model': return v.model?.toLowerCase() ?? null;
+        case 'year': return v.year ?? null;
+        case 'body': return v.body_type?.toLowerCase() ?? null;
+        case 'price': return v.price_aud ?? null;
+        case 'status': return v.status.toLowerCase();
+        case 'updated': return v.updated_at;
+      }
+    };
+    return [...filteredVehicles].sort((a, b) => {
+      const av = getValue(a);
+      const bv = getValue(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      const cmp = typeof av === 'string' && typeof bv === 'string'
+        ? av.localeCompare(bv)
+        : (av as number) - (bv as number);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredVehicles, sortCol, sortDir]);
+
+  // Deselect rows that are no longer in the filtered view
+  useEffect(() => {
+    const visibleIds = new Set(filteredVehicles.map((v) => v.id));
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [filteredVehicles]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const allVisibleSelected =
+    filteredVehicles.length > 0 && filteredVehicles.every((v) => selectedIds.has(v.id));
+
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredVehicles.map((v) => v.id)));
+    }
+  };
 
   const clearFilters = () => {
     setMakeFilter('');
+    setModelFilter('');
+    setModelSearch('');
+    setModelOpen(false);
     setYearFilter('');
     setFuelTypeFilter('');
   };
@@ -329,13 +484,16 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
     const params = new URLSearchParams();
     params.set('status', statusFilter);
     if (showVariants) params.set('showVariants', '1');
+    if (showPacks) params.set('showPacks', '1');
+    if (noImage) params.set('noImage', '1');
     if (makeFilter) params.set('make', makeFilter);
+    if (modelFilter) params.set('model', modelFilter);
     if (yearFilter) params.set('year', yearFilter);
     if (fuelTypeFilter) params.set('fuel', fuelTypeFilter);
     if (searchFilter) params.set('search', searchFilter);
     const query = params.toString();
     return query ? `?${query}` : '';
-  }, [statusFilter, showVariants, makeFilter, yearFilter, fuelTypeFilter, searchFilter]);
+  }, [statusFilter, showVariants, showPacks, noImage, makeFilter, modelFilter, yearFilter, fuelTypeFilter, searchFilter]);
 
   useEffect(() => {
     const hash = `/admin/cars${currentListQuery}`;
@@ -451,10 +609,28 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
           />
           Show variants
         </label>
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showPacks}
+            onChange={(e) => setShowPacks(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          Show packs
+        </label>
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={noImage}
+            onChange={(e) => setHasImage(e.target.checked)}
+            className="rounded border-slate-300"
+          />
+          No image
+        </label>
         <div className="relative">
           <select
             value={makeFilter}
-            onChange={(e) => setMakeFilter(e.target.value)}
+            onChange={(e) => { setMakeFilter(e.target.value); setModelFilter(''); setModelSearch(''); setModelOpen(false); }}
             className="h-8 pl-3 pr-8 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 appearance-none cursor-pointer"
           >
             <option value="">All makes</option>
@@ -463,6 +639,39 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
             ))}
           </select>
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+        </div>
+        <div className="relative" ref={modelComboRef}>
+          <input
+            type="text"
+            value={modelOpen ? modelSearch : (modelOptions.find((o) => o.value === modelFilter)?.label ?? '')}
+            placeholder="All models"
+            onFocus={() => { setModelOpen(true); setModelSearch(''); }}
+            onChange={(e) => setModelSearch(e.target.value)}
+            className="h-8 pl-3 pr-8 w-36 text-xs border border-slate-300 rounded-lg bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900"
+          />
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+          {modelOpen && (
+            <div className="absolute z-20 top-full mt-1 left-0 min-w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              <button
+                onMouseDown={(e) => { e.preventDefault(); setModelFilter(''); setModelOpen(false); setModelSearch(''); }}
+                className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 ${!modelFilter ? 'text-slate-900 font-medium' : 'text-slate-500'}`}
+              >
+                All models
+              </button>
+              {filteredModelOptions.map((o) => (
+                <button
+                  key={o.value}
+                  onMouseDown={(e) => { e.preventDefault(); setModelFilter(o.value); setModelOpen(false); setModelSearch(''); }}
+                  className={`w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 ${modelFilter === o.value ? 'text-slate-900 font-medium' : 'text-slate-700'}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+              {filteredModelOptions.length === 0 && (
+                <p className="px-3 py-2 text-xs text-slate-400">No models match</p>
+              )}
+            </div>
+          )}
         </div>
         <div className="relative">
           <select
@@ -501,6 +710,42 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
         </p>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2 bg-slate-900 text-white rounded-lg mb-3 text-sm">
+          <span className="font-medium">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto">
+            <button
+              onClick={() => handleBulkStatus('live')}
+              disabled={bulkWorking}
+              className="h-7 px-3 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-xs font-medium transition-colors"
+            >
+              Set Live
+            </button>
+            <button
+              onClick={() => handleBulkStatus('draft')}
+              disabled={bulkWorking}
+              className="h-7 px-3 rounded-md bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-xs font-medium transition-colors"
+            >
+              Set Draft
+            </button>
+            <button
+              onClick={() => handleBulkStatus('archived')}
+              disabled={bulkWorking}
+              className="h-7 px-3 rounded-md bg-red-700 hover:bg-red-600 disabled:opacity-50 text-xs font-medium transition-colors"
+            >
+              Archive
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="h-7 px-3 rounded-md bg-slate-700 hover:bg-slate-600 text-xs transition-colors"
+            >
+              Deselect all
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {error && (
         <div className="p-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg mb-4">{error}</div>
@@ -511,31 +756,71 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-4 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAll}
+                    className="rounded border-slate-300"
+                  />
+                </th>
                 {showVariants && (
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
                 )}
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">ID</th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('id')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    ID <SortIndicator col="id" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
                 {showVariants && (
                   <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Base / Code</th>
                 )}
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Make</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Model</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Year</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Body</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Price</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Status</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Updated</th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('make')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Make <SortIndicator col="make" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('model')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Model <SortIndicator col="model" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('year')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Year <SortIndicator col="year" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('body')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Body <SortIndicator col="body" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('price')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Price <SortIndicator col="price" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('status')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Status <SortIndicator col="status" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
+                <th className="px-4 py-3">
+                  <button onClick={() => handleSort('updated')} className="flex items-center gap-1 text-xs font-semibold text-slate-500 uppercase tracking-wide hover:text-slate-800 transition-colors">
+                    Updated <SortIndicator col="updated" sortCol={sortCol} sortDir={sortDir} />
+                  </button>
+                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={showVariants ? 11 : 9} className="px-4 py-8 text-center text-sm text-slate-400">Loading…</td>
+                  <td colSpan={showVariants ? 12 : 10} className="px-4 py-8 text-center text-sm text-slate-400">Loading…</td>
                 </tr>
               ) : filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={showVariants ? 11 : 9} className="px-4 py-12 text-center">
+                  <td colSpan={showVariants ? 12 : 10} className="px-4 py-12 text-center">
                     {statusFilter === 'active' && !showVariants && vehicles.length === 0 ? (
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-slate-700">No vehicles yet</p>
@@ -559,8 +844,16 @@ export function CarsList({ listQuery = '', onNavigate }: CarsListProps) {
                   </td>
                 </tr>
               ) : (
-                filteredVehicles.map((v) => (
-                  <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${v.row_type === 'VARIANT' ? 'bg-slate-50/40' : ''}`}>
+                sortedVehicles.map((v) => (
+                  <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${selectedIds.has(v.id) ? 'bg-blue-50/40' : v.row_type === 'VARIANT' ? 'bg-slate-50/40' : ''}`}>
+                    <td className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(v.id)}
+                        onChange={() => toggleRow(v.id)}
+                        className="rounded border-slate-300"
+                      />
+                    </td>
                     {showVariants && (
                       <td className="px-4 py-3">
                         {v.row_type === 'BASE' ? (
