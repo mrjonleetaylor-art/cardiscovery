@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from 'react';
 import { AdminAuthGuard } from './AdminAuthGuard';
+import { AdminThemeProvider } from './context/AdminThemeContext';
 import { AdminLayout } from './components/AdminLayout';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { CarsList } from './pages/CarsList';
@@ -96,8 +97,10 @@ function AdminRouter() {
 
 export function AdminApp() {
   return (
-    <AdminAuthGuard>
-      <AdminRouter />
-    </AdminAuthGuard>
+    <AdminThemeProvider>
+      <AdminAuthGuard>
+        <AdminRouter />
+      </AdminAuthGuard>
+    </AdminThemeProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider } from './components/Auth/AuthContext';
 import { Navigation } from './components/Navigation';
+import { LogoMark } from './components/LogoMark';
 import Discovery from './components/Discovery';
 import VehicleDetailPage from './components/VehicleDetailPage';
 import Comparisons from './components/ComparisonPage';
@@ -195,10 +196,27 @@ function AppContent() {
       <Navigation onNavigate={handleNavigate} currentPage={currentPage} selectedState={selectedState} onStateChange={setSelectedState} />
 
       {isLoadingVehicles ? (
-        <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-20 pb-12 px-4">
-          <div className="max-w-7xl mx-auto">
-            <p className="text-slate-600">Loading vehicles...</p>
-          </div>
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: '#FFFFFF',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '20px',
+          zIndex: 9999,
+        }}>
+          <LogoMark size={64} spinning={true} />
+          <span style={{
+            fontFamily: 'Outfit, sans-serif',
+            fontSize: '15px',
+            fontWeight: 600,
+            color: '#868E9C',
+            letterSpacing: '-0.1px',
+          }}>
+            Auto <span style={{ color: '#0066FF' }}>Atlas</span>
+          </span>
         </div>
       ) : (
         <>

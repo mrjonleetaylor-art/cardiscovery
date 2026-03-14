@@ -80,6 +80,35 @@ export default function VehicleDetailPage({ vehicleId, vehicles, onBack, selecte
     return () => window.removeEventListener('garage-updated', refresh);
   }, [vehicleId]);
 
+  useEffect(() => {
+    if (!vehicle) return;
+    document.title = `${vehicle.year} ${vehicle.make} ${vehicle.model} Specs & Price | Auto Atlas`;
+    return () => { document.title = 'Auto Atlas — Find & Compare New Cars in Australia'; };
+  }, [vehicle]);
+
+  useEffect(() => {
+    if (!vehicle) return;
+    const price = resolvedData?.totalPrice ?? null;
+    const ld: Record<string, unknown> = {
+      '@context': 'https://schema.org',
+      '@type': 'Car',
+      name: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+      brand: { '@type': 'Brand', name: vehicle.make },
+      model: vehicle.model,
+      vehicleModelDate: String(vehicle.year),
+    };
+    if (price != null) {
+      ld.offers = { '@type': 'Offer', price, priceCurrency: 'AUD' };
+    }
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'vehicle-jsonld';
+    script.textContent = JSON.stringify(ld);
+    document.getElementById('vehicle-jsonld')?.remove();
+    document.head.appendChild(script);
+    return () => { document.getElementById('vehicle-jsonld')?.remove(); };
+  }, [vehicle, resolvedData?.totalPrice]);
+
   const selectionMatchesSaved = inGarage && doesSavedSelectionMatch(vehicleId, selection);
 
   const hasValue = (v: string | null | undefined): v is string =>

@@ -111,8 +111,8 @@ export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPrevie
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-sm text-slate-400">Loading preview…</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+        <p className="text-sm text-slate-400 dark:text-slate-500">Loading preview…</p>
       </div>
     );
   }
@@ -121,13 +121,13 @@ export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPrevie
 
   if (error || !structured || !base) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6">
         <div className="text-center max-w-sm">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
-          <p className="text-sm text-red-600 mb-4">{error ?? 'Unknown error'}</p>
+          <p className="text-sm text-red-600 dark:text-red-400 mb-4">{error ?? 'Unknown error'}</p>
           <button
             onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(baseId)}${listQuery}`)}
-            className="text-sm text-slate-600 hover:text-slate-900 underline"
+            className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline"
           >
             Back to edit
           </button>
@@ -141,7 +141,7 @@ export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPrevie
   // ── Preview ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Admin preview banner */}
       <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -182,23 +182,23 @@ export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPrevie
             {/* Right: price panel (simplified — no garage/compare actions) */}
             <div className="lg:col-span-1">
               <div className="lg:sticky lg:top-16">
-                <div className="bg-white rounded-xl p-6 shadow-lg">
-                  <h1 className="text-2xl font-bold text-slate-900 mb-1">
+                <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg border border-slate-100 dark:border-slate-700">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">
                     {structured.year} {structured.make} {structured.model}
                   </h1>
                   {resolvedData && (
-                    <p className="text-slate-600 mb-4">{resolvedData.selectedTrim.name}</p>
+                    <p className="text-slate-600 dark:text-slate-400 mb-4">{resolvedData.selectedTrim.name}</p>
                   )}
 
                   <div className="mb-6">
-                    <div className="text-sm text-slate-600 mb-1">Price</div>
-                    <div className="text-3xl font-bold text-slate-900">
+                    <div className="text-sm text-slate-600 dark:text-slate-400 mb-1">Price</div>
+                    <div className="text-3xl font-bold text-slate-900 dark:text-slate-100">
                       {resolvedData
                         ? `$${resolvedData.totalPrice.toLocaleString()}`
                         : '—'}
                     </div>
                     {(resolvedData?.selectedPacks ?? []).length > 0 && (
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                         incl.{' '}
                         {resolvedData!.selectedPacks
                           .map((p) => p.name)
@@ -208,19 +208,19 @@ export function AdminPreview({ baseId, listQuery = '', onNavigate }: AdminPrevie
                   </div>
 
                   {/* Admin metadata */}
-                  <div className="border-t border-slate-100 pt-4 space-y-1">
-                    <p className="text-xs text-slate-500">
+                  <div className="border-t border-slate-100 dark:border-slate-700 pt-4 space-y-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Status:{' '}
-                      <span className="font-medium text-slate-800">{base.status}</span>
+                      <span className="font-medium text-slate-800 dark:text-slate-200">{base.status}</span>
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       Row type:{' '}
-                      <span className="font-mono text-slate-800">{base.row_type}</span>
+                      <span className="font-mono text-slate-800 dark:text-slate-200">{base.row_type}</span>
                     </p>
                     {packCount > 0 && (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Option packs available:{' '}
-                        <span className="font-medium text-slate-800">{packCount}</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200">{packCount}</span>
                       </p>
                     )}
                   </div>

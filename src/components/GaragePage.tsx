@@ -3,7 +3,7 @@ import { HelpCircle } from 'lucide-react';
 import { StructuredVehicle } from '../types/specs';
 import { VehicleConfigSelection } from '../types/config';
 import { UserPreferences } from '../types';
-import { GarageItem, getGarageItems } from '../lib/session';
+import { GarageItem, getGarageItems, removeFromGarage } from '../lib/session';
 import { supabase } from '../lib/supabase';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { GarageProfileModal } from './garage/GarageProfileModal';
@@ -143,16 +143,63 @@ export default function GaragePage({ vehicles, selectedState: _selectedState }: 
                     setFlyoutVehicleId(vehicle.id);
                   }}
                 />
-                <div className="border border-t-0 border-slate-200 rounded-b-lg bg-white px-3 pb-3 pt-2 flex gap-2">
-                  <div className="flex-1">
-                    <FindDealerButton vehicle={vehicle} />
+                <div className="border border-t-0 border-slate-200 rounded-b-lg bg-white px-3 pb-3 pt-2">
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1 }}>
+                      <FindDealerButton vehicle={vehicle} />
+                    </div>
+                    <button
+                      onClick={() => window.dispatchEvent(new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }))}
+                      style={{
+                        padding: '0 16px',
+                        height: '44px',
+                        background: 'transparent',
+                        border: '1.5px solid #E8EAED',
+                        borderRadius: '8px',
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#0D0F12',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Compare
+                    </button>
+                    <button
+                      onClick={() => { removeFromGarage(vehicle.id); handleRemove(vehicle.id); window.dispatchEvent(new Event('garage-updated')); }}
+                      title="Remove from Garage"
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        flexShrink: 0,
+                        background: 'transparent',
+                        border: '1.5px solid #E8EAED',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: '#868E9C',
+                        transition: 'color 0.15s, border-color 0.15s',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.color = '#CC3300';
+                        e.currentTarget.style.borderColor = '#CC3300';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.color = '#868E9C';
+                        e.currentTarget.style.borderColor = '#E8EAED';
+                      }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14H6L5 6"/>
+                        <path d="M10 11v6M14 11v6"/>
+                        <path d="M9 6V4h6v2"/>
+                      </svg>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('navigate-compare', { detail: { vehicleId: vehicle.id } }))}
-                    className="px-4 py-2 rounded-lg font-medium transition-all border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-900 text-sm whitespace-nowrap"
-                  >
-                    Car A
-                  </button>
                 </div>
               </div>
             );

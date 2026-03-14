@@ -30,6 +30,11 @@ export default function ComparisonPage({
   prefillVehicleIdA?: string | null;
   prefillVehicleIdB?: string | null;
 }) {
+  useEffect(() => {
+    document.title = 'Compare Cars Side-by-Side | Auto Atlas';
+    return () => { document.title = 'Auto Atlas — Find & Compare New Cars in Australia'; };
+  }, []);
+
   const [dealerModalVehicle, setDealerModalVehicle] = useState<StructuredVehicle | null>(null);
   const [narrationTriggered, setNarrationTriggered] = useState(false);
   const [narration, setNarration] = useState<ComparisonNarration | null>(null);

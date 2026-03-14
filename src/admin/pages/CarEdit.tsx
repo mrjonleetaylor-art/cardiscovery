@@ -70,14 +70,14 @@ function Section({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden mb-4">
+    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden mb-4">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold text-slate-900 hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-sm font-semibold text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
       >
         {title}
-        {open ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        {open ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
       </button>
       {open && <div className="px-5 pb-5 pt-1">{children}</div>}
     </div>
@@ -93,14 +93,14 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[160px_1fr] items-start gap-3 py-2.5 border-b border-slate-100 last:border-0">
-      <span className="text-xs font-medium text-slate-500 pt-2.5 leading-tight">{label}</span>
+    <div className="grid grid-cols-[160px_1fr] items-start gap-3 py-2.5 border-b border-slate-100 dark:border-slate-700 last:border-0">
+      <span className="text-xs font-medium text-slate-500 dark:text-slate-400 pt-2.5 leading-tight">{label}</span>
       <div>{children}</div>
     </div>
   );
 }
 
-const INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-colors';
+const INPUT = 'w-full px-3 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400 focus:border-transparent transition-colors';
 const TEXTAREA = `${INPUT} resize-y min-h-[80px]`;
 
 const CONTROLLED_SPEC_ENUMS: Record<string, EnumOption[]> = {
@@ -402,20 +402,20 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       <div className="flex items-center gap-3 mb-6">
         <button
           onClick={() => onNavigate(returnToList)}
-          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-100 transition-colors"
+          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold text-slate-900 truncate">{pageTitle}</h1>
+          <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">{pageTitle}</h1>
           {!isNew && (
-            <p className="text-xs text-slate-400 font-mono mt-0.5">{form.id}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 font-mono mt-0.5">{form.id}</p>
           )}
         </div>
         {!isNew && form.row_type === 'VARIANT' && baseVehicle && (
           <button
             onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(baseVehicle.id)}${listQuery}`)}
-            className="text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+            className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg transition-colors"
           >
             Base: {baseVehicle.id}
           </button>
@@ -423,7 +423,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         {!isNew && form.row_type === 'VARIANT' && (
           <button
             onClick={() => setShowResolved((s) => !s)}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg transition-colors"
           >
             {showResolved ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             {showResolved ? 'Hide resolved' : 'Show resolved'}
@@ -434,7 +434,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
             onClick={() => onNavigate(
               `/admin/preview/${encodeURIComponent(form.row_type === 'BASE' ? form.id : form.base_id)}${listQuery}`
             )}
-            className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+            className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg transition-colors"
             title="Preview in public Profile UI"
           >
             <Eye className="w-3.5 h-3.5" />
@@ -456,14 +456,14 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
 
       {/* Resolved preview banner for variants */}
       {showResolved && resolved && (
-        <div className="mb-4 p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
-          <p className="font-semibold text-slate-700 mb-2">Resolved preview (base + variant merged)</p>
+        <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-500 dark:text-slate-400">
+          <p className="font-semibold text-slate-700 dark:text-slate-300 mb-2">Resolved preview (base + variant merged)</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            <span>Make: <strong className="text-slate-900">{resolved.make}</strong></span>
-            <span>Model: <strong className="text-slate-900">{resolved.model}</strong></span>
-            <span>Year: <strong className="text-slate-900">{resolved.year}</strong></span>
-            <span>Body: <strong className="text-slate-900">{resolved.body_type}</strong></span>
-            <span>Price: <strong className="text-slate-900">{resolved.price_aud != null ? `$${resolved.price_aud.toLocaleString()}` : '—'}</strong></span>
+            <span>Make: <strong className="text-slate-900 dark:text-slate-100">{resolved.make}</strong></span>
+            <span>Model: <strong className="text-slate-900 dark:text-slate-100">{resolved.model}</strong></span>
+            <span>Year: <strong className="text-slate-900 dark:text-slate-100">{resolved.year}</strong></span>
+            <span>Body: <strong className="text-slate-900 dark:text-slate-100">{resolved.body_type}</strong></span>
+            <span>Price: <strong className="text-slate-900 dark:text-slate-100">{resolved.price_aud != null ? `$${resolved.price_aud.toLocaleString()}` : '—'}</strong></span>
           </div>
         </div>
       )}
@@ -525,7 +525,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                 <option value="variant">Variant</option>
                 <option value="pack">Pack</option>
               </select>
-              <p className="text-xs text-slate-400 mt-1">Pack rows appear in Option Packs; Variant rows appear in Variants.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Pack rows appear in Option Packs; Variant rows appear in Variants.</p>
             </Field>
           )}
           {form.row_type === 'VARIANT' && form.specs['admin_variant_kind'] === 'pack' && (
@@ -537,7 +537,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                 placeholder="M Sport Package"
                 className={INPUT}
               />
-              <p className="text-xs text-slate-400 mt-1">Display name shown in Option Packs list. Falls back to variant code.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Display name shown in Option Packs list. Falls back to variant code.</p>
             </Field>
           )}
           <Field label="ID">
@@ -550,7 +550,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               disabled={!isNew}
             />
             {derivedId && !form.id && (
-              <p className="text-xs text-slate-400 mt-1">Will be derived as: <code>{derivedId}</code></p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Will be derived as: <code>{derivedId}</code></p>
             )}
           </Field>
           <Field label="Make">
@@ -587,11 +587,11 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               min={0}
             />
             {isPackRow ? (
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                 Pack rows use delta pricing: this amount is added on top of the selected trim.
               </p>
             ) : form.row_type === 'VARIANT' && !form.price_aud && baseVehicle?.price_aud ? (
-              <p className="text-xs text-slate-400 mt-1">Inherits from base: ${baseVehicle.price_aud.toLocaleString()}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Inherits from base: ${baseVehicle.price_aud.toLocaleString()}</p>
             ) : null}
             {hasSuspiciousPackPrice && (
               <p className="text-xs text-amber-600 mt-1">
@@ -606,7 +606,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
             {(['ACT','NSW','NT','QLD','SA','TAS','VIC','WA'] as const).map((state) => (
               <div key={state}>
-                <label className="block text-xs font-medium text-slate-500 mb-1">{state}</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{state}</label>
                 <input
                   type="number"
                   value={statePricesForm[state] ?? ''}
@@ -618,7 +618,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               </div>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-3">Drive-away price in AUD per state. Leave blank to omit that state from the saved object.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">Drive-away price in AUD per state. Leave blank to omit that state from the saved object.</p>
         </Section>
 
         {/* ── Images ───────────────────────────────────────────────────────── */}
@@ -630,7 +630,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
             <button
               type="button"
               onClick={() => setGalleryOpen((o) => !o)}
-              className="flex items-center gap-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+              className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
             >
               <span className={`transition-transform ${galleryOpen ? 'rotate-90' : ''}`}>▶</span>
               Gallery Images
@@ -639,10 +639,10 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               )}
             </button>
             {galleryOpen && (
-              <div className="mt-3 space-y-2 pl-4 border-l-2 border-slate-100">
+              <div className="mt-3 space-y-2 pl-4 border-l-2 border-slate-100 dark:border-slate-700">
                 {galleryFields.map((val, idx) => (
                   <div key={idx}>
-                    <label className="block text-xs text-slate-500 mb-1">Gallery Image {idx + 1}</label>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Gallery Image {idx + 1}</label>
                     <input
                       type="url"
                       value={val}
@@ -670,7 +670,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
               <img
                 src={form.cover_image_url}
                 alt="Cover preview"
-                className="h-24 w-auto rounded-lg border border-slate-200 object-cover"
+                className="h-24 w-auto rounded-lg border border-slate-200 dark:border-slate-700 object-cover"
                 onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
             </div>
@@ -700,7 +700,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                           onChange={(value) => setSpec(def.key, value)}
                         />
                         {inheritedVal && !val && (
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                             Inherits: {labelFor(inheritedVal, enumList)}
                           </p>
                         )}
@@ -785,22 +785,22 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
         })}
 
         {/* ── Save bar ─────────────────────────────────────────────────────── */}
-        <div className="sticky bottom-0 bg-white border-t border-slate-200 px-5 py-3 -mx-6 flex items-center justify-between gap-3">
-          {saveError && <p className="text-xs text-red-600 flex-1">{saveError}</p>}
-          {saveSuccess && <p className="text-xs text-emerald-600 flex-1">Saved</p>}
+        <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-5 py-3 -mx-6 flex items-center justify-between gap-3">
+          {saveError && <p className="text-xs text-red-600 dark:text-red-400 flex-1">{saveError}</p>}
+          {saveSuccess && <p className="text-xs text-emerald-600 dark:text-emerald-400 flex-1">Saved</p>}
           {!saveError && !saveSuccess && <div className="flex-1" />}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => onNavigate(returnToList)}
-              className="h-9 px-4 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+              className="h-9 px-4 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-9 px-5 text-sm rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 transition-colors font-medium"
+              className="h-9 px-5 text-sm rounded-lg bg-slate-900 dark:bg-slate-700 text-white hover:bg-slate-800 dark:hover:bg-slate-600 disabled:opacity-50 transition-colors font-medium"
             >
               {saving ? 'Saving…' : isNew ? 'Create' : 'Save'}
             </button>
@@ -812,10 +812,10 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       {!isNew && form.row_type === 'BASE' && (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-900">Option Packs</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Option Packs</h2>
             <button
               onClick={() => { setAddPackCode(''); setAddPackName(''); setAddPackError(null); setShowAddPack(true); }}
-              className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+              className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add pack
@@ -823,32 +823,32 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
           </div>
 
           {packRows.length === 0 ? (
-            <p className="text-sm text-slate-400 py-4 text-center bg-white border border-slate-200 rounded-xl">No packs</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">No packs</p>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Code</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Name</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Price</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Status</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Updated</th>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Code</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Name</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Price</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Updated</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {packRows.map((p) => {
                     const packName = p.specs['pack_name'] || p.license_note || p.variant_code || p.id;
                     return (
-                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 text-xs font-mono text-slate-600">{p.variant_code}</td>
-                        <td className="px-4 py-3 text-xs text-slate-700">{packName}</td>
-                        <td className="px-4 py-3 text-xs text-slate-600">
-                          {p.price_aud != null ? `$${p.price_aud.toLocaleString()}` : <span className="text-slate-400">Inherited</span>}
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <td className="px-4 py-3 text-xs font-mono text-slate-600 dark:text-slate-400">{p.variant_code}</td>
+                        <td className="px-4 py-3 text-xs text-slate-700 dark:text-slate-300">{packName}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                          {p.price_aud != null ? `$${p.price_aud.toLocaleString()}` : <span className="text-slate-400 dark:text-slate-500">Inherited</span>}
                         </td>
                         <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
-                        <td className="px-4 py-3 text-xs text-slate-400">
+                        <td className="px-4 py-3 text-xs text-slate-400 dark:text-slate-500">
                           {new Date(p.updated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
                         </td>
                         <td className="px-4 py-3">
@@ -856,7 +856,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                             <button
                               onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(p.id)}${listQuery}`)}
                               title="Edit"
-                              className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                              className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                             >
                               <Pencil className="w-3.5 h-3.5" />
                             </button>
@@ -864,7 +864,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                               <button
                                 onClick={() => handleRestoreVariant(p.id)}
                                 title="Restore"
-                                className="p-1.5 rounded border border-slate-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
                               >
                                 <RotateCcw className="w-3.5 h-3.5" />
                               </button>
@@ -872,7 +872,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                               <button
                                 onClick={() => setConfirmArchiveId(p.id)}
                                 title="Archive"
-                                className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+                                className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                               >
                                 <Archive className="w-3.5 h-3.5" />
                               </button>
@@ -893,10 +893,10 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       {!isNew && form.row_type === 'BASE' && (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-900">Variants</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Variants</h2>
             <button
               onClick={() => onNavigate(`/admin/cars/new?base=${encodeURIComponent(form.id)}${listQuery ? `&${listQuery.slice(1)}` : ''}`)}
-              className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium transition-colors"
+              className="h-8 flex items-center gap-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 text-xs font-medium transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               Add variant
@@ -904,30 +904,30 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
           </div>
 
           {nonPackRows.length === 0 ? (
-            <p className="text-sm text-slate-400 py-4 text-center bg-white border border-slate-200 rounded-xl">No variants</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500 py-4 text-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">No variants</p>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">ID</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Code</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Status</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Price</th>
-                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500">Updated</th>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">ID</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Code</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Status</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Price</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400">Updated</th>
                     <th className="px-4 py-2.5" />
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                   {nonPackRows.map((v) => (
-                    <tr key={v.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-600">{v.id}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{v.variant_code}</td>
+                    <tr key={v.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                      <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-400">{v.id}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">{v.variant_code}</td>
                       <td className="px-4 py-3"><StatusBadge status={v.status} /></td>
-                      <td className="px-4 py-3 text-xs text-slate-600">
-                        {v.price_aud != null ? `$${v.price_aud.toLocaleString()}` : <span className="text-slate-400">Inherited</span>}
+                      <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-400">
+                        {v.price_aud != null ? `$${v.price_aud.toLocaleString()}` : <span className="text-slate-400 dark:text-slate-500">Inherited</span>}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">
+                      <td className="px-4 py-3 text-xs text-slate-400 dark:text-slate-500">
                         {new Date(v.updated_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
                       </td>
                       <td className="px-4 py-3">
@@ -935,7 +935,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                           <button
                             onClick={() => onNavigate(`/admin/cars/${encodeURIComponent(v.id)}${listQuery}`)}
                             title="Edit"
-                            className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+                            className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -943,7 +943,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                             <button
                               onClick={() => handleRestoreVariant(v.id)}
                               title="Restore"
-                              className="p-1.5 rounded border border-slate-200 text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                             </button>
@@ -951,7 +951,7 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                             <button
                               onClick={() => setConfirmArchiveId(v.id)}
                               title="Archive"
-                              className="p-1.5 rounded border border-slate-200 text-slate-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+                              className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-300 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                             >
                               <Archive className="w-3.5 h-3.5" />
                             </button>
@@ -982,14 +982,14 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
       {showAddPack && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowAddPack(false)} aria-hidden="true" />
-          <div className="relative bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-sm p-6">
-            <h2 className="text-base font-semibold text-slate-900 mb-1">Add option pack</h2>
-            <p className="text-sm text-slate-500 mb-4">
-              Creates a VARIANT row with <code className="text-xs bg-slate-100 px-1 rounded">admin_variant_kind=pack</code>. The variant code is appended to the base ID.
+          <div className="relative bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">Add option pack</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              Creates a VARIANT row with <code className="text-xs bg-slate-100 dark:bg-slate-700 dark:text-slate-300 px-1 rounded">admin_variant_kind=pack</code>. The variant code is appended to the base ID.
             </p>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                   Variant code <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -997,39 +997,39 @@ export function CarEdit({ vehicleId, listQuery = '', onNavigate }: CarEditProps)
                   value={addPackCode}
                   onChange={(e) => { setAddPackCode(e.target.value); setAddPackError(null); }}
                   placeholder="_msport"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400"
                   autoFocus
                 />
                 {addPackCode.trim() && (
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                     ID: <code className="text-xs">{form.id}{addPackCode.trim()}</code>
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Pack name</label>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Pack name</label>
                 <input
                   type="text"
                   value={addPackName}
                   onChange={(e) => setAddPackName(e.target.value)}
                   placeholder="M Sport Package"
-                  className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                  className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-400"
                 />
               </div>
             </div>
-            {addPackError && <p className="text-xs text-red-600 mt-3">{addPackError}</p>}
+            {addPackError && <p className="text-xs text-red-600 dark:text-red-400 mt-3">{addPackError}</p>}
             <div className="flex justify-end gap-2 mt-5">
               <button
                 onClick={() => setShowAddPack(false)}
                 disabled={addPackSaving}
-                className="h-9 px-4 text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50"
+                className="h-9 px-4 text-sm rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddPack}
                 disabled={!addPackCode.trim() || addPackSaving}
-                className="h-9 px-4 text-sm rounded-lg bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
+                className="h-9 px-4 text-sm rounded-lg bg-slate-900 dark:bg-slate-700 text-white hover:bg-slate-800 dark:hover:bg-slate-600 disabled:opacity-50"
               >
                 {addPackSaving ? 'Creating…' : 'Create & edit'}
               </button>

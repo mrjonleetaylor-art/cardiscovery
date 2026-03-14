@@ -29,8 +29,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-lg font-bold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500 mt-0.5">CarFinder admin</p>
+        <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Dashboard</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">CarFinder admin</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -39,8 +39,8 @@ export function AdminDashboard({ onNavigate }: AdminDashboardProps) {
         <StatCard icon={<Archive className="w-5 h-5" />} label="Archived (Graveyard)" value={loading ? '—' : counts.archived} color="slate" onClick={() => onNavigate('/admin/cars')} />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-slate-900 mb-3">Quick links</h2>
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">Quick links</h2>
         <div className="space-y-2">
           <QuickLink label="Manage cars" description="View, edit, archive vehicles" onClick={() => onNavigate('/admin/cars')} />
           <QuickLink label="Add new car" description="Create a new BASE vehicle record" onClick={() => onNavigate('/admin/cars/new')} />
@@ -60,18 +60,18 @@ function StatCard({
   onClick: () => void;
 }) {
   const colorMap = {
-    emerald: 'text-emerald-600 bg-emerald-50',
-    amber:   'text-amber-600 bg-amber-50',
-    slate:   'text-slate-500 bg-slate-100',
+    emerald: 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-400',
+    amber:   'text-amber-600 bg-amber-50 dark:bg-amber-950/50 dark:text-amber-400',
+    slate:   'text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-400',
   };
   return (
     <button
       onClick={onClick}
-      className="bg-white border border-slate-200 rounded-xl p-5 text-left hover:shadow-sm transition-shadow w-full"
+      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 text-left hover:shadow-sm transition-shadow w-full"
     >
       <div className={`inline-flex p-2 rounded-lg mb-3 ${colorMap[color]}`}>{icon}</div>
-      <p className="text-2xl font-bold text-slate-900">{value}</p>
-      <p className="text-sm text-slate-500 mt-0.5">{label}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{label}</p>
     </button>
   );
 }
@@ -80,13 +80,13 @@ function QuickLink({ label, description, onClick }: { label: string; description
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors text-left"
+      className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left"
     >
       <div>
-        <p className="text-sm font-medium text-slate-900">{label}</p>
-        <p className="text-xs text-slate-500">{description}</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{label}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
       </div>
-      <span className="text-slate-400 text-xs">→</span>
+      <span className="text-slate-400 dark:text-slate-500 text-xs">→</span>
     </button>
   );
 }

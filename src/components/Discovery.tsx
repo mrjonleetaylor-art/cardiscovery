@@ -48,6 +48,77 @@ function interleaveByMake<T extends { make: string }>(arr: T[]): T[] {
   return result;
 }
 
+// ── LCG shuffle for category rows (deterministic per mount) ──────────────────
+function shuffleArray<T>(arr: T[], seed: number): T[] {
+  const a = [...arr];
+  let s = seed;
+  for (let i = a.length - 1; i > 0; i--) {
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    const j = Math.abs(s) % (i + 1);
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ── StructuredVehicle field accessors ────────────────────────────────────────
+function vPrice(v: StructuredVehicle): number {
+  return v.trims[0]?.basePrice ?? Infinity;
+}
+function vBodyType(v: StructuredVehicle): string {
+  return (v.trims[0]?.specs.overview.bodyType ?? '').toLowerCase();
+}
+function vFuelType(v: StructuredVehicle): string {
+  return (v.trims[0]?.specs.overview.fuelType ?? '').toLowerCase();
+}
+function vSeating(v: StructuredVehicle): number {
+  return v.trims[0]?.specs.overview.seating ?? 0;
+}
+
+// ── Editorial categories ─────────────────────────────────────────────────────
+const DISCOVERY_CATEGORIES: { label: string; filter: (v: StructuredVehicle) => boolean }[] = [
+  {
+    label: 'Family SUVs',
+    filter: (v) => vBodyType(v) === 'suv' && vPrice(v) >= 35000 && vPrice(v) < 60000,
+  },
+  {
+    label: 'Affordable EVs',
+    filter: (v) => vFuelType(v) === 'electric' && vPrice(v) < 60000,
+  },
+  {
+    label: 'Premium EVs',
+    filter: (v) => vFuelType(v) === 'electric' && vPrice(v) >= 60000 && vPrice(v) <= 100000,
+  },
+  {
+    label: 'Best Value',
+    filter: (v) => vPrice(v) < 40000,
+  },
+  {
+    label: 'Hybrids & PHEVs',
+    filter: (v) => (vFuelType(v) === 'hybrid' || vFuelType(v) === 'phev') && vPrice(v) < 60000,
+  },
+  {
+    label: 'Premium SUVs',
+    filter: (v) => vBodyType(v) === 'suv' && vPrice(v) >= 70000 && vPrice(v) <= 100000,
+  },
+  {
+    label: 'Diesel Workhorses',
+    filter: (v) => vFuelType(v) === 'diesel' && vPrice(v) < 80000,
+  },
+  {
+    label: 'Sharp Hatches & Sedans',
+    filter: (v) => (vBodyType(v) === 'hatch' || vBodyType(v) === 'sedan') && vPrice(v) < 40000,
+  },
+  {
+    label: 'Luxury',
+    filter: (v) => vPrice(v) > 100000,
+  },
+  {
+    label: '7-Seaters',
+    filter: (v) => vSeating(v) >= 7 && vPrice(v) < 90000,
+  },
+];
+
+// ── Pill definitions ─────────────────────────────────────────────────────────
 const BODY_PILLS = [
   { key: '', label: 'All' },
   { key: 'suv', label: 'SUV' },
@@ -221,6 +292,8 @@ export default function Discovery({
     };
   }, [inputFocused, aiQuery]);
 
+  const [showAllCategories, setShowAllCategories] = useState(false);
+
   const [filters, setFilters] = useState<Filters>({
     make: '',
     model: '',
@@ -240,11 +313,25 @@ export default function Discovery({
     [filters.make, filters.model].filter(Boolean).length +
     (JSON.stringify(advancedFilters) !== JSON.stringify(defaultAdvancedFilters) ? 1 : 0);
 
-  // Fixed per mount, changes on each page load
+  const hasActiveFilters = !!(
+    filters.make || filters.model || filters.bodyType || filters.fuelType ||
+    filters.budgetMin > 0 || filters.budgetMax < 250000 ||
+    JSON.stringify(advancedFilters) !== JSON.stringify(defaultAdvancedFilters)
+  );
+
+  // Category rows are the default state; flat grid takes over when any filter is active
+  const showCategoryRows = !hasActiveFilters && aiResults === null;
+
+  // Fixed per mount
   const [seed] = useState(() => Math.random());
+  const mountSeed = useMemo(() => Date.now(), []);
 
   useEffect(() => {
     loadGarageState();
+  }, []);
+
+  useEffect(() => {
+    document.title = 'Auto Atlas — Find & Compare New Cars in Australia';
   }, []);
 
   const loadGarageState = () => {
@@ -301,6 +388,20 @@ export default function Discovery({
     return map;
   }, [aiResults]);
 
+  // Editorial category rows — shuffled once per mount
+  const categoryRows = useMemo(() => {
+    if (!showCategoryRows) return [];
+    const shuffledCats = shuffleArray(DISCOVERY_CATEGORIES, mountSeed);
+    return shuffledCats
+      .map((cat, idx) => {
+        const eligible = vehicles.filter(cat.filter);
+        if (eligible.length < 3) return null;
+        const picked = shuffleArray(eligible, mountSeed ^ (idx * 997 + 1)).slice(0, 3);
+        return { label: cat.label, vehicles: picked };
+      })
+      .filter((row): row is { label: string; vehicles: StructuredVehicle[] } => row !== null);
+  }, [vehicles, showCategoryRows, mountSeed]);
+
   const handleAISearch = () => {
     const q = aiQuery.trim();
     if (q.length < 3) return;
@@ -344,12 +445,143 @@ export default function Discovery({
     setCompareWarningId(null);
   };
 
+  const renderCard = (vehicle: StructuredVehicle) => {
+    const inGarage = garageItems.includes(vehicle.id);
+    const isCarA = compareV1Id === vehicle.id;
+    const isCarB = compareV2Id === vehicle.id;
+    const { basePrice, imageUrl, bodyType, fuelType: displayFuelType } = getDisplayProps(vehicle);
+    const overview = vehicle.trims[0]?.specs?.overview;
+    const drivetrain = overview?.drivetrain ?? '';
+    const powertrainBadges: { label: string }[] = [];
+    if (drivetrain === 'awd') powertrainBadges.push({ label: 'AWD' });
+    else if (drivetrain === 'four_wd') powertrainBadges.push({ label: '4WD' });
+
+    return (
+      <div key={vehicle.id} className="bg-white rounded-xl border border-[#E8EAED] overflow-hidden hover:shadow-lg transition-shadow">
+        <div
+          className="aspect-[2/1] bg-[#F7F8FA] relative overflow-hidden cursor-pointer"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
+          }}
+        >
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={`${vehicle.make} ${vehicle.model}`}
+              className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[#868E9C]">
+              No Image
+            </div>
+          )}
+          {vehicle.tags && vehicle.tags.length > 0 && (
+            <div className="absolute top-3 left-3 flex flex-wrap gap-2">
+              {vehicle.tags.slice(0, 2).map((tag) => (
+                <span key={tag} className="px-2 py-1 bg-white/90 backdrop-blur-sm text-xs font-medium text-[#0D0F12] rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-3">
+          <div className="flex items-start justify-between mb-0.5">
+            <p className="font-heading text-xl font-bold text-[#0D0F12] leading-tight">
+              ${(resolvePrice(vehicle, selectedState) ?? basePrice).toLocaleString()}
+            </p>
+            {vehicle.trims.length > 1 && (
+              <span className="shrink-0 ml-3 px-2 py-0.5 rounded-full bg-[#F7F8FA] text-xs text-[#868E9C] font-normal">
+                +{vehicle.trims.length - 1} {vehicle.trims.length - 1 === 1 ? 'variant' : 'variants'}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-[#868E9C] mb-1.5">Driveaway pricing is indicative only and subject to change.</p>
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-[#868E9C]">
+            {bodyType && <span>{bodyType}</span>}
+            {bodyType && displayFuelType && <span className="text-[#C8CACD]">·</span>}
+            {displayFuelType && <span className="capitalize">{displayFuelType}</span>}
+            {powertrainBadges.map((b) => (
+              <>
+                <span key={`dot-${b.label}`} className="text-[#C8CACD]">·</span>
+                <span key={b.label}>{b.label}</span>
+              </>
+            ))}
+          </div>
+          <div className="mb-2">
+            <h3 className="font-heading text-base font-semibold text-[#0D0F12]">
+              {vehicle.year} {vehicle.make} {vehicle.model}
+            </h3>
+            {aiReasonMap[vehicle.id] && (
+              <p className="text-xs text-[#868E9C] mt-0.5 leading-snug">{aiReasonMap[vehicle.id]}</p>
+            )}
+          </div>
+
+          {vehicle.aiSummary && (
+            <p className="text-sm text-[#868E9C] mb-3 line-clamp-2">{vehicle.aiSummary}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => toggleGarage(vehicle.id)}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                inGarage
+                  ? 'bg-[#0D0F12] text-white hover:bg-[#0D0F12]/90'
+                  : 'border border-[#E8EAED] text-[#868E9C] hover:border-[#0066FF] hover:text-[#0D0F12]'
+              }`}
+            >
+              {inGarage ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+              {inGarage ? 'In Garage' : 'Add to Garage'}
+            </button>
+            <button
+              onClick={() => handleCompareAction(vehicle.id)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                isCarA
+                  ? 'bg-[#0066FF] text-white hover:bg-blue-700 shadow-md'
+                  : isCarB
+                  ? 'bg-blue-50 text-[#0066FF] border border-blue-200'
+                  : 'border border-[#E8EAED] text-[#868E9C] hover:border-[#0066FF] hover:text-[#0D0F12]'
+              }`}
+            >
+              {isCarA ? (
+                <span className="flex items-center gap-1">
+                  <Check className="w-4 h-4" /> Car A
+                </span>
+              ) : isCarB ? (
+                <span className="flex items-center gap-1">
+                  <Check className="w-4 h-4" /> Car B
+                </span>
+              ) : compareV1Id ? (
+                'Car B'
+              ) : (
+                'Car A'
+              )}
+            </button>
+          </div>
+
+          {compareWarningId === vehicle.id && compareV1Id === vehicle.id && (
+            <p className="mt-2 text-xs text-amber-600">Car B must be a different vehicle.</p>
+          )}
+
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
+            }}
+            className="block w-full mt-3 text-center text-sm text-[#0066FF] hover:text-blue-700 font-medium"
+          >
+            View Details →
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white pt-16 pb-12 px-4">
+    <div className="min-h-screen bg-[#F7F8FA] pt-16 pb-12 px-4">
       <div className="max-w-7xl mx-auto">
         {/* AI search */}
         <div className="mb-3">
-          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest mt-1 mb-1">AI-Powered Search</p>
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <input
@@ -360,12 +592,12 @@ export default function Discovery({
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
                 disabled={aiLoading}
-                className="w-full h-14 px-5 bg-white text-slate-900 focus:outline-none disabled:opacity-50"
-                style={{ fontSize: 17, border: '1px solid #e0e0e0', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
+                className="w-full h-14 px-5 bg-white text-[#0D0F12] focus:outline-none disabled:opacity-50"
+                style={{ fontSize: 17, border: '1px solid #E8EAED', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
               />
               {!inputFocused && !aiQuery && displayedText && (
                 <span
-                  className="absolute inset-0 flex items-center px-5 text-slate-400 pointer-events-none select-none overflow-hidden whitespace-nowrap"
+                  className="absolute inset-0 flex items-center px-5 text-[#868E9C] pointer-events-none select-none overflow-hidden whitespace-nowrap"
                   style={{ fontSize: 17 }}
                   aria-hidden="true"
                 >
@@ -376,20 +608,20 @@ export default function Discovery({
             <button
               onClick={handleAISearch}
               disabled={aiLoading || aiQuery.trim().length < 3}
-              className={`flex items-center gap-2 px-5 h-14 border border-[#e0e0e0] text-sm font-medium text-slate-900 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
-              style={{ boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}
+              className={`flex items-center gap-2 px-5 h-14 border border-[#E8EAED] text-sm font-medium text-[#0D0F12] bg-white hover:bg-[#F7F8FA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors${aiLoading ? ' animate-pulse' : ''}`}
+              style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}
             >
               {aiLoading ? 'Searching...' : (
                 <>
                   Search
-                  <span className="text-xs font-semibold tracking-wider text-white bg-slate-800 px-1.5 py-0.5 rounded-sm">AI</span>
+                  <span className="text-xs font-semibold tracking-wider text-white bg-[#0066FF] px-1.5 py-0.5 rounded-sm">AI</span>
                 </>
               )}
             </button>
             {aiResults !== null && (
               <button
                 onClick={clearAI}
-                className="px-4 h-14 border border-[#e0e0e0] text-sm text-slate-500 hover:text-slate-900 hover:border-slate-400 transition-colors"
+                className="px-4 h-14 border border-[#E8EAED] bg-white text-sm text-[#868E9C] hover:text-[#0D0F12] hover:border-[#0066FF] transition-colors"
               >
                 Clear
               </button>
@@ -406,28 +638,28 @@ export default function Discovery({
                 onClick={() => setFilters((f) => ({ ...f, bodyType: pill.key }))}
                 className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
                   filters.bodyType.toLowerCase() === pill.key
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                    ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                    : 'bg-white text-[#868E9C] border-[#E8EAED] hover:border-[#0066FF] hover:text-[#0D0F12]'
                 }`}
               >
                 {pill.label}
               </button>
             ))}
-            <span className="flex-shrink-0 w-px h-4 bg-slate-200 mx-1" />
+            <span className="flex-shrink-0 w-px h-4 bg-[#E8EAED] mx-1" />
             {POWERTRAIN_PILLS.filter((p) => p.key !== '').map((pill) => (
               <button
                 key={`pt-${pill.key}`}
                 onClick={() => setFilters((f) => ({ ...f, fuelType: filters.fuelType === pill.key ? '' : pill.key }))}
                 className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
                   filters.fuelType === pill.key
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                    ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                    : 'bg-white text-[#868E9C] border-[#E8EAED] hover:border-[#0066FF] hover:text-[#0D0F12]'
                 }`}
               >
                 {pill.label}
               </button>
             ))}
-            <span className="flex-shrink-0 w-px h-4 bg-slate-200 mx-1" />
+            <span className="flex-shrink-0 w-px h-4 bg-[#E8EAED] mx-1" />
             {BUDGET_PILLS.filter((p) => p.key !== 'any').map((pill) => (
               <button
                 key={`budget-${pill.key}`}
@@ -438,8 +670,8 @@ export default function Discovery({
                 }))}
                 className={`flex-shrink-0 h-7 px-3.5 rounded-full text-xs font-medium border transition-colors ${
                   activeBudgetKey === pill.key
-                    ? 'bg-slate-900 text-white border-slate-900'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400 hover:text-slate-900'
+                    ? 'bg-[#0066FF] text-white border-[#0066FF]'
+                    : 'bg-white text-[#868E9C] border-[#E8EAED] hover:border-[#0066FF] hover:text-[#0D0F12]'
                 }`}
               >
                 {pill.label}
@@ -451,37 +683,35 @@ export default function Discovery({
           <div className="flex items-center gap-4">
             <button
               onClick={() => setFiltersOpen((o) => !o)}
-              className={`flex items-center gap-2 h-9 px-4 rounded-lg border text-sm font-semibold transition-colors ${
-                filtersOpen || panelFilterCount > 0
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : 'bg-slate-900 text-white border-slate-900 hover:bg-slate-800'
-              }`}
+              className="flex items-center gap-2 h-9 px-4 rounded-lg border text-sm font-semibold transition-colors bg-[#0066FF] text-white border-[#0066FF] hover:bg-blue-700"
             >
               <SlidersHorizontal className="w-4 h-4" />
               Filters
               {panelFilterCount > 0 && (
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-slate-900 text-[10px] font-bold">
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-[#0066FF] text-[10px] font-bold">
                   {panelFilterCount}
                 </span>
               )}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filtersOpen ? 'rotate-180' : ''}`} />
             </button>
-            <p className="text-sm text-slate-500">
-              {displayedVehicles.length} vehicle{displayedVehicles.length !== 1 ? 's' : ''} found
-              {aiResults !== null && ` — ${aiResults.length} AI-matched`}
-            </p>
+            {!showCategoryRows && (
+              <p className="text-sm text-[#868E9C]">
+                {displayedVehicles.length} vehicle{displayedVehicles.length !== 1 ? 's' : ''} found
+                {aiResults !== null && ` — ${aiResults.length} AI-matched`}
+              </p>
+            )}
           </div>
 
           {/* Collapsible filter panel */}
           {filtersOpen && (
-            <div className="mt-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+            <div className="mt-3 p-4 bg-white rounded-xl border border-[#E8EAED] shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Make</label>
+                  <label className="block text-sm font-medium text-[#0D0F12] mb-1">Make</label>
                   <select
                     value={filters.make}
                     onChange={(e) => setFilters({ ...filters, make: e.target.value, model: '' })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   >
                     <option value="">All Makes</option>
                     {makes.map(make => (
@@ -491,12 +721,12 @@ export default function Discovery({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Model</label>
+                  <label className="block text-sm font-medium text-[#0D0F12] mb-1">Model</label>
                   <select
                     value={filters.model}
                     onChange={(e) => setFilters({ ...filters, model: e.target.value })}
                     disabled={!filters.make}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF] disabled:bg-[#F7F8FA] disabled:cursor-not-allowed"
                   >
                     <option value="">All Models</option>
                     {models.map(model => (
@@ -506,11 +736,11 @@ export default function Discovery({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Body Type</label>
+                  <label className="block text-sm font-medium text-[#0D0F12] mb-1">Body Type</label>
                   <select
                     value={filters.bodyType}
                     onChange={(e) => setFilters({ ...filters, bodyType: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   >
                     <option value="">All Types</option>
                     {bodyTypes.map(type => (
@@ -520,11 +750,11 @@ export default function Discovery({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Fuel Type</label>
+                  <label className="block text-sm font-medium text-[#0D0F12] mb-1">Fuel Type</label>
                   <select
                     value={filters.fuelType}
                     onChange={(e) => setFilters({ ...filters, fuelType: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                    className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                   >
                     <option value="">All Fuels</option>
                     {fuelTypes.map(fuel => (
@@ -535,36 +765,36 @@ export default function Discovery({
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Budget</label>
+                <label className="block text-sm font-medium text-[#0D0F12] mb-1">Budget</label>
                 <div className="grid grid-cols-2 gap-3 mb-2">
                   <div>
-                    <label className="block text-xs text-slate-600 mb-1">Min</label>
+                    <label className="block text-xs text-[#868E9C] mb-1">Min</label>
                     <input
                       type="number"
                       value={filters.budgetMin}
                       onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(Number(e.target.value), filters.budgetMax) })}
                       min="0"
                       max="250000"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-600 mb-1">Max</label>
+                    <label className="block text-xs text-[#868E9C] mb-1">Max</label>
                     <input
                       type="number"
                       value={filters.budgetMax}
                       onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(Number(e.target.value), filters.budgetMin) })}
                       min="0"
                       max="250000"
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900"
+                      className="w-full px-3 py-2 border border-[#E8EAED] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0066FF]"
                     />
                   </div>
                 </div>
 
                 <div className="px-2">
-                  <div className="relative h-2 bg-slate-200 rounded-full">
+                  <div className="relative h-2 bg-[#E8EAED] rounded-full">
                     <div
-                      className="absolute h-2 bg-slate-900 rounded-full"
+                      className="absolute h-2 bg-[#0066FF] rounded-full"
                       style={{
                         left: `${(filters.budgetMin / 250000) * 100}%`,
                         right: `${100 - (filters.budgetMax / 250000) * 100}%`,
@@ -577,7 +807,7 @@ export default function Discovery({
                       step="5000"
                       value={filters.budgetMin}
                       onChange={(e) => setFilters({ ...filters, budgetMin: Math.min(parseInt(e.target.value), filters.budgetMax) })}
-                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
+                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066FF] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066FF] [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
                       style={{ zIndex: filters.budgetMin > filters.budgetMax - 10000 ? 5 : 3 }}
                     />
                     <input
@@ -587,7 +817,7 @@ export default function Discovery({
                       step="5000"
                       value={filters.budgetMax}
                       onChange={(e) => setFilters({ ...filters, budgetMax: Math.max(parseInt(e.target.value), filters.budgetMin) })}
-                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-slate-900 [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-slate-900 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
+                      className="absolute w-full h-2 appearance-none bg-transparent pointer-events-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#0066FF] [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:appearance-none [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[#0066FF] [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white [&::-moz-range-thumb]:shadow-md"
                       style={{ zIndex: 4 }}
                     />
                   </div>
@@ -602,13 +832,13 @@ export default function Discovery({
                 />
               </div>
 
-              <div className="flex justify-end pt-2 border-t border-slate-200">
+              <div className="flex justify-end pt-2 border-t border-[#E8EAED]">
                 <button
                   onClick={() => {
                     setFilters({ make: '', model: '', bodyType: '', fuelType: '', budgetMin: 0, budgetMax: 250000 });
                     setAdvancedFilters(defaultAdvancedFilters);
                   }}
-                  className="text-sm text-slate-900 hover:text-slate-700 font-medium"
+                  className="text-sm text-[#0D0F12] hover:text-[#868E9C] font-medium"
                 >
                   Clear all filters
                 </button>
@@ -617,158 +847,137 @@ export default function Discovery({
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayedVehicles.map((vehicle) => {
-            const inGarage = garageItems.includes(vehicle.id);
-            const isCarA = compareV1Id === vehicle.id;
-            const isCarB = compareV2Id === vehicle.id;
-            const { basePrice, imageUrl, bodyType, fuelType: displayFuelType } = getDisplayProps(vehicle);
-            const overview = vehicle.trims[0]?.specs?.overview;
-            const fuelType = overview?.fuelType ?? '';
-            const drivetrain = overview?.drivetrain ?? '';
-            const powertrainBadges: { label: string; className: string }[] = [];
-            if (fuelType === 'electric') powertrainBadges.push({ label: 'EV', className: 'bg-emerald-600 text-white' });
-            else if (fuelType === 'phev') powertrainBadges.push({ label: 'PHEV', className: 'bg-blue-600 text-white' });
-            else if (fuelType === 'hybrid') powertrainBadges.push({ label: 'Hybrid', className: 'bg-teal-600 text-white' });
-            if (drivetrain === 'awd') powertrainBadges.push({ label: 'AWD', className: 'bg-slate-800 text-white' });
-            else if (drivetrain === 'four_wd') powertrainBadges.push({ label: '4WD', className: 'bg-slate-800 text-white' });
-
-            return (
-              <div key={vehicle.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden hover:shadow-lg transition-shadow">
-                <div
-                  className="aspect-[2/1] bg-slate-100 relative overflow-hidden cursor-pointer"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
-                  }}
-                >
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt={`${vehicle.make} ${vehicle.model}`}
-                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-400">
-                      No Image
-                    </div>
-                  )}
-                  {vehicle.tags && vehicle.tags.length > 0 && (
-                    <div className="absolute top-3 left-3 flex flex-wrap gap-2">
-                      {vehicle.tags.slice(0, 2).map((tag) => (
-                        <span key={tag} className="px-2 py-1 bg-white/90 backdrop-blur-sm text-xs font-medium text-slate-700 rounded">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-0.5">
-                    <p className="text-2xl font-bold text-slate-900 leading-tight">
-                      ${(resolvePrice(vehicle, selectedState) ?? basePrice).toLocaleString()}
-                    </p>
-                    {vehicle.trims.length > 1 && (
-                      <span className="shrink-0 ml-3 px-2 py-0.5 rounded-full bg-slate-100 text-xs text-slate-400 font-normal">
-                        +{vehicle.trims.length - 1} {vehicle.trims.length - 1 === 1 ? 'variant' : 'variants'}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-slate-400 mb-1.5">Driveaway pricing is indicative only and subject to change.</p>
-                  <div className="flex items-center gap-1.5 mb-2 text-xs text-slate-500">
-                    {bodyType && <span>{bodyType}</span>}
-                    {bodyType && displayFuelType && <span className="text-slate-300">·</span>}
-                    {displayFuelType && <span className="capitalize">{displayFuelType}</span>}
-                    {powertrainBadges.filter(b => b.label === 'AWD' || b.label === '4WD').map((b) => (
-                      <>
-                        <span key={`dot-${b.label}`} className="text-slate-300">·</span>
-                        <span key={b.label}>{b.label}</span>
-                      </>
-                    ))}
-                  </div>
-                  <div className="mb-2">
-                    <h3 className="text-base font-semibold text-slate-900">
-                      {vehicle.year} {vehicle.make} {vehicle.model}
-                    </h3>
-                    {aiReasonMap[vehicle.id] && (
-                      <p className="text-xs text-slate-400 mt-0.5 leading-snug">{aiReasonMap[vehicle.id]}</p>
-                    )}
-                  </div>
-
-                  {vehicle.aiSummary && (
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-2">{vehicle.aiSummary}</p>
-                  )}
-
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => toggleGarage(vehicle.id)}
-                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                        inGarage
-                          ? 'bg-slate-900 text-white hover:bg-slate-800'
-                          : 'border border-slate-300 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {inGarage ? <Minus className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                      {inGarage ? 'In Garage' : 'Add to Garage'}
-                    </button>
-                    <button
-                      onClick={() => handleCompareAction(vehicle.id)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                        isCarA
-                          ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
-                          : isCarB
-                          ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                          : 'border border-slate-300 text-slate-700 hover:bg-slate-50 hover:border-slate-900'
-                      }`}
-                    >
-                      {isCarA ? (
-                        <span className="flex items-center gap-1">
-                          <Check className="w-4 h-4" /> Car A
-                        </span>
-                      ) : isCarB ? (
-                        <span className="flex items-center gap-1">
-                          <Check className="w-4 h-4" /> Car B
-                        </span>
-                      ) : compareV1Id ? (
-                        'Car B'
-                      ) : (
-                        'Car A'
-                      )}
-                    </button>
-                  </div>
-
-                  {compareWarningId === vehicle.id && compareV1Id === vehicle.id && (
-                    <p className="mt-2 text-xs text-amber-600">Car B must be a different vehicle.</p>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      window.dispatchEvent(new CustomEvent('view-vehicle', { detail: { vehicleId: vehicle.id } }));
-                    }}
-                    className="block w-full mt-3 text-center text-sm text-slate-600 hover:text-slate-900 font-medium"
-                  >
-                    View Details →
-                  </button>
+        {/* Category rows (default) or flat grid (when filters active / AI results) */}
+        {showCategoryRows ? (
+          <>
+          <div className="space-y-12">
+            {(showAllCategories ? categoryRows : categoryRows.slice(0, 3)).map((row) => (
+              <div key={row.label}>
+                <h2 className="font-heading font-bold text-[#0D0F12] mb-4" style={{ fontSize: 18 }}>
+                  {row.label}
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {row.vehicles.map((vehicle) => renderCard(vehicle))}
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {displayedVehicles.length === 0 && (
-          <div className="text-center py-12">
-            {aiLoading ? (
-              <>
-                <div className="w-8 h-8 border-2 border-slate-200 border-t-slate-600 rounded-full mx-auto mb-4 animate-spin" />
-                <p className="text-lg text-slate-600">{loadingMessage}</p>
-              </>
-            ) : (
-              <>
-                <p className="text-lg text-slate-600">No vehicles found matching your criteria</p>
-                <p className="text-sm text-slate-500 mt-2">Try adjusting your filters to see more results</p>
-              </>
+            ))}
+            {categoryRows.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-lg text-[#868E9C]">No vehicles available</p>
+              </div>
+            )}
+            {!showAllCategories && categoryRows.length > 3 && (
+              <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                <button
+                  onClick={() => setShowAllCategories(true)}
+                  style={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: '#0066FF',
+                    background: 'transparent',
+                    border: '1.5px solid #E8EAED',
+                    borderRadius: '8px',
+                    padding: '12px 28px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  See more categories
+                </button>
+              </div>
             )}
           </div>
+
+          {/* Why Auto Atlas */}
+          <div style={{
+            background: '#0D0F12',
+            borderRadius: '16px',
+            padding: '56px 48px',
+            marginTop: '64px',
+          }}>
+            <h2 style={{
+              fontFamily: 'Outfit, sans-serif',
+              fontSize: '28px',
+              fontWeight: 800,
+              color: '#FFFFFF',
+              letterSpacing: '-0.5px',
+              marginBottom: '40px',
+              textAlign: 'center',
+            }}>
+              Car shopping, finally done right
+            </h2>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: '48px',
+            }}>
+              {[
+                {
+                  heading: 'Tell us what you need',
+                  body: 'Describe your ideal car in plain English. Our AI reads between the lines — budget, lifestyle, priorities — and finds the best matches with honest explanations.',
+                },
+                {
+                  heading: 'See everything, decide confidently',
+                  body: 'Compare real specs and pricing across every trim and variant, side by side. No dealer spin. No missing information. Just the full picture.',
+                },
+                {
+                  heading: 'Save it. Come back. No rush.',
+                  body: "Build your Garage as you browse. Your shortlist is always there when you're ready to take the next step.",
+                },
+              ].map(({ heading, body }) => (
+                <div key={heading}>
+                  <div style={{
+                    width: '32px',
+                    height: '2px',
+                    background: '#0066FF',
+                    marginBottom: '16px',
+                  }} />
+                  <h3 style={{
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '17px',
+                    fontWeight: 700,
+                    color: '#FFFFFF',
+                    marginBottom: '10px',
+                    letterSpacing: '-0.2px',
+                  }}>
+                    {heading}
+                  </h3>
+                  <p style={{
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '14px',
+                    lineHeight: '1.7',
+                    color: '#868E9C',
+                    margin: 0,
+                  }}>
+                    {body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displayedVehicles.map((vehicle) => renderCard(vehicle))}
+            </div>
+
+            {displayedVehicles.length === 0 && (
+              <div className="text-center py-12">
+                {aiLoading ? (
+                  <>
+                    <div className="w-8 h-8 border-2 border-[#E8EAED] border-t-[#0066FF] rounded-full mx-auto mb-4 animate-spin" />
+                    <p className="text-lg text-[#868E9C]">{loadingMessage}</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg text-[#868E9C]">No vehicles found matching your criteria</p>
+                    <p className="text-sm text-[#868E9C] mt-2">Try adjusting your filters to see more results</p>
+                  </>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

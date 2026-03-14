@@ -5,6 +5,28 @@ import { ResolvedVehicle } from '../../lib/resolveConfiguredVehicle';
 import { StructuredVehicle } from '../../types/specs';
 import { VehicleConfigurationControls } from '../config/VehicleConfigurationControls';
 
+// Words that must always be fully uppercase
+const ALLCAPS = new Set([
+  'awd', 'fwd', 'rwd', '4wd',
+  'dct', 'cvt', 'amt',
+  'suv', 'phev', 'ev', 'bev', 'hev',
+  'abs', 'aeb', 'acc', 'lka', 'bsd', 'rcta', 'ota', 'adas',
+  'usb', 'nfc', 'gps', 'led', 'hud', 'ai',
+  'kw', 'nm', 'rpm',
+]);
+
+function formatSpecValue(value: string | undefined | null): string {
+  if (!value) return '—';
+  return value
+    .split(' ')
+    .map(word => {
+      const clean = word.toLowerCase().replace(/[^a-z]/g, '');
+      if (ALLCAPS.has(clean)) return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 export function VehicleProfileContent({
   vehicle,
   allVehicles,
@@ -65,16 +87,31 @@ export function VehicleProfileContent({
   return (
     <>
       {isModal ? (
-        <div className="h-[180px] sm:h-[220px] mb-4 bg-slate-100 rounded-xl overflow-hidden flex items-center justify-center">
+        <div style={{
+          width: '100%',
+          aspectRatio: '16 / 9',
+          borderRadius: '8px',
+          overflow: 'hidden',
+          background: '#F7F8FA',
+          marginBottom: '16px',
+        }}>
           {heroSrc && !heroError ? (
             <img
               src={heroSrc}
               alt={`${vehicle.make} ${vehicle.model}`}
-              className="max-w-full max-h-full object-contain"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: 'center',
+                display: 'block',
+              }}
               onError={() => setHeroError(true)}
             />
           ) : (
-            <span className="text-sm text-slate-400">No Image Available</span>
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span className="text-sm text-slate-400">No Image Available</span>
+            </div>
           )}
         </div>
       ) : (
@@ -126,12 +163,12 @@ export function VehicleProfileContent({
 
         <div className={`grid md:grid-cols-2 ${isModal ? 'gap-6' : 'gap-8'}`}>
           <div className="space-y-4">
-            <SpecRow label="Body Type" value={specs?.overview.bodyType || 'N/A'} />
-            <SpecRow label="Fuel Type" value={specs?.overview.fuelType || 'N/A'} />
-            <SpecRow label="Drivetrain" value={specs?.overview.drivetrain || 'N/A'} />
-            <SpecRow label="Transmission" value={specs?.overview.transmission || 'N/A'} />
-            <SpecRow label="Seating" value={specs?.overview.seating ? `${specs.overview.seating} seats` : 'N/A'} />
-            <SpecRow label="Warranty" value={specs?.overview.warranty || 'N/A'} />
+            <SpecRow label="Body Type" value={formatSpecValue(specs?.overview.bodyType)} />
+            <SpecRow label="Fuel Type" value={formatSpecValue(specs?.overview.fuelType)} />
+            <SpecRow label="Drivetrain" value={formatSpecValue(specs?.overview.drivetrain)} />
+            <SpecRow label="Transmission" value={formatSpecValue(specs?.overview.transmission)} />
+            <SpecRow label="Seating" value={specs?.overview.seating ? `${specs.overview.seating} seats` : '—'} />
+            <SpecRow label="Warranty" value={formatSpecValue(specs?.overview.warranty)} />
           </div>
 
           <div>
@@ -171,12 +208,12 @@ export function VehicleProfileContent({
       >
         <div className="grid md:grid-cols-2 gap-6">
           <div className="space-y-4">
-            <SpecRow label="Fuel Economy" value={specs?.efficiency.fuelEconomy || 'N/A'} />
-            <SpecRow label="Real-World Estimate" value={specs?.efficiency.realWorldEstimate || 'N/A'} />
-            <SpecRow label="Fuel Tank" value={specs?.efficiency.fuelTank || 'N/A'} />
-            <SpecRow label="Range Estimate" value={specs?.efficiency.estimatedRange || 'N/A'} />
-            <SpecRow label="Service Interval" value={specs?.efficiency.serviceInterval || 'N/A'} />
-            <SpecRow label="Annual Running Cost" value={specs?.efficiency.annualRunningCost || 'N/A'} />
+            <SpecRow label="Fuel Economy" value={specs?.efficiency.fuelEconomy || '—'} />
+            <SpecRow label="Real-World Estimate" value={specs?.efficiency.realWorldEstimate || '—'} />
+            <SpecRow label="Fuel Tank" value={specs?.efficiency.fuelTank || '—'} />
+            <SpecRow label="Range Estimate" value={specs?.efficiency.estimatedRange || '—'} />
+            <SpecRow label="Service Interval" value={formatSpecValue(specs?.efficiency.serviceInterval)} />
+            <SpecRow label="Annual Running Cost" value={specs?.efficiency.annualRunningCost || '—'} />
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-900 mb-2">Ownership Feel</h4>
@@ -196,16 +233,16 @@ export function VehicleProfileContent({
         <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <SpecRow label="Power" value={specs?.performance.power || 'N/A'} />
-              <SpecRow label="Torque" value={specs?.performance.torque || 'N/A'} />
-              <SpecRow label="0-100 km/h" value={specs?.performance.zeroToHundred || 'N/A'} />
-              <SpecRow label="Top Speed" value={specs?.performance.topSpeed || 'N/A'} />
+              <SpecRow label="Power" value={specs?.performance.power || '—'} />
+              <SpecRow label="Torque" value={specs?.performance.torque || '—'} />
+              <SpecRow label="0-100 km/h" value={specs?.performance.zeroToHundred || '—'} />
+              <SpecRow label="Top Speed" value={specs?.performance.topSpeed || '—'} />
             </div>
             <div className="space-y-4">
-              <SpecRow label="Weight" value={specs?.performance.weight || 'N/A'} />
-              <SpecRow label="Power to Weight" value={specs?.performance.powerToWeight || 'N/A'} />
-              <SpecRow label="Engine" value={specs?.performance.engine || 'N/A'} />
-              <SpecRow label="Suspension" value={specs?.performance.suspension || 'N/A'} />
+              <SpecRow label="Weight" value={specs?.performance.weight || '—'} />
+              <SpecRow label="Power to Weight" value={specs?.performance.powerToWeight || '—'} />
+              <SpecRow label="Engine" value={formatSpecValue(specs?.performance.engine)} />
+              <SpecRow label="Suspension" value={formatSpecValue(specs?.performance.suspension)} />
             </div>
           </div>
           <div>
@@ -226,16 +263,16 @@ export function VehicleProfileContent({
         <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <SpecRow label="Screen Size" value={specs?.connectivity.screenSize || 'N/A'} />
-              <SpecRow label="Digital Cluster" value={specs?.connectivity.digitalCluster || 'N/A'} />
-              <SpecRow label="Apple CarPlay" value={specs?.connectivity.appleCarPlay || 'N/A'} />
-              <SpecRow label="Android Auto" value={specs?.connectivity.androidAuto || 'N/A'} />
+              <SpecRow label="Screen Size" value={specs?.connectivity.screenSize || '—'} />
+              <SpecRow label="Digital Cluster" value={formatSpecValue(specs?.connectivity.digitalCluster)} />
+              <SpecRow label="Apple CarPlay" value={formatSpecValue(specs?.connectivity.appleCarPlay)} />
+              <SpecRow label="Android Auto" value={formatSpecValue(specs?.connectivity.androidAuto)} />
             </div>
             <div className="space-y-4">
-              <SpecRow label="Wireless Charging" value={specs?.connectivity.wirelessCharging || 'N/A'} />
-              <SpecRow label="Sound System" value={specs?.connectivity.soundSystem || 'N/A'} />
-              <SpecRow label="App Support" value={specs?.connectivity.appSupport || 'N/A'} />
-              <SpecRow label="OTA Updates" value={specs?.connectivity.otaUpdates || 'N/A'} />
+              <SpecRow label="Wireless Charging" value={formatSpecValue(specs?.connectivity.wirelessCharging)} />
+              <SpecRow label="Sound System" value={formatSpecValue(specs?.connectivity.soundSystem)} />
+              <SpecRow label="App Support" value={formatSpecValue(specs?.connectivity.appSupport)} />
+              <SpecRow label="OTA Updates" value={formatSpecValue(specs?.connectivity.otaUpdates)} />
             </div>
           </div>
           <div>
@@ -256,15 +293,15 @@ export function VehicleProfileContent({
         <div className="space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <SpecRow label="ANCAP Rating" value={specs?.safety.ancapRating || 'N/A'} />
-              <SpecRow label="Airbags" value={specs?.safety.airbags ? `${specs.safety.airbags} airbags` : 'N/A'} />
-              <SpecRow label="AEB" value={specs?.safety.aeb || 'N/A'} />
-              <SpecRow label="Lane Keep Assist" value={specs?.safety.laneKeepAssist || 'N/A'} />
+              <SpecRow label="ANCAP Rating" value={formatSpecValue(specs?.safety.ancapRating)} />
+              <SpecRow label="Airbags" value={specs?.safety.airbags ? `${specs.safety.airbags} airbags` : '—'} />
+              <SpecRow label="AEB" value={formatSpecValue(specs?.safety.aeb)} />
+              <SpecRow label="Lane Keep Assist" value={formatSpecValue(specs?.safety.laneKeepAssist)} />
             </div>
             <div className="space-y-4">
-              <SpecRow label="Adaptive Cruise" value={specs?.safety.adaptiveCruise || 'N/A'} />
-              <SpecRow label="Blind Spot Monitor" value={specs?.safety.blindSpotMonitoring || 'N/A'} />
-              <SpecRow label="Rear Cross Traffic" value={specs?.safety.rearCrossTraffic || 'N/A'} />
+              <SpecRow label="Adaptive Cruise" value={formatSpecValue(specs?.safety.adaptiveCruise)} />
+              <SpecRow label="Blind Spot Monitor" value={formatSpecValue(specs?.safety.blindSpotMonitoring)} />
+              <SpecRow label="Rear Cross Traffic" value={formatSpecValue(specs?.safety.rearCrossTraffic)} />
             </div>
           </div>
           <div>
@@ -283,9 +320,9 @@ export function VehicleProfileContent({
           compact={isModal}
         >
           <div className="space-y-4">
-            {specs?.dimensions?.bootSpace && <SpecRow label="Boot Space" value={specs.dimensions.bootSpace} />}
-            {specs?.dimensions?.towingCapacity && <SpecRow label="Towing Capacity" value={specs.dimensions.towingCapacity} />}
-            {specs?.dimensions?.groundClearance && <SpecRow label="Ground Clearance" value={specs.dimensions.groundClearance} />}
+            {specs?.dimensions?.bootSpace && <SpecRow label="Boot Space" value={formatSpecValue(specs.dimensions.bootSpace)} />}
+            {specs?.dimensions?.towingCapacity && <SpecRow label="Towing Capacity" value={formatSpecValue(specs.dimensions.towingCapacity)} />}
+            {specs?.dimensions?.groundClearance && <SpecRow label="Ground Clearance" value={formatSpecValue(specs.dimensions.groundClearance)} />}
           </div>
         </AccordionSection>
       )}

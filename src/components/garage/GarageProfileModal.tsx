@@ -112,7 +112,7 @@ export function GarageProfileModal({
       <div
         ref={dialogRef}
         data-testid="garage-profile-modal"
-        className="relative w-[min(1100px,92vw)] max-h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-[min(600px,92vw)] max-h-[85vh] bg-white rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden"
       >
 
         {/* ── Fixed title bar ────────────────────────────────────────────────── */}
